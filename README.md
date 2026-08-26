@@ -54,6 +54,34 @@ rubber-banding, posição de corrida (1º/2º/3º), fim de corrida (N voltas).
 Ver `docs/DESIGN_DECISIONS.md` para a arquitetura de decisão compartilhada
 entre level up e item, pensada pra não travar quando multiplayer entrar.
 
+## Teclado + controle (gamepad), incluindo Steam Deck
+
+Todo input do jogador — dirigir e os painéis de pausa (level up/item) —
+reconhece teclado e controle ao mesmo tempo, sem precisar trocar de modo:
+
+- `ProjectSettings/InputManager.asset` (commitado explicitamente, não
+  gerado pelo Unity) faz os eixos `Horizontal`/`Vertical` lerem teclado
+  (WASD/setas) **e** o analógico esquerdo do primeiro joystick conectado.
+  Acelerar/ré usa o eixo vertical do analógico (frente/trás), não os
+  gatilhos — ver `docs/DESIGN_DECISIONS.md` pra saber por quê.
+- Drift lê `KeyCode.JoystickButton0`/`5` (botão sul / ombro direito, "em
+  qualquer joystick") além de `Shift`/`Space`.
+- `PauseChoiceUI` (o painel de level up e de item) agora também navega com
+  seta cima/baixo ou analógico/d-pad, e confirma com Enter/Space/botão sul
+  — antes só dava pra clicar com o mouse, o que quebrava jogo 100%
+  teclado ou 100% controle bem no primeiro level up. Clique com mouse
+  continua funcionando.
+
+No Steam Deck especificamente: o Steam Input, no template padrão de
+"Gamepad", emula um controle Xbox 360 (XInput) pro jogo — é por isso que
+"ler joystick genérico" funciona no Deck sem nenhum código específico da
+Valve. O que isso NÃO cobre (fora do escopo por enquanto, ver
+`docs/DESIGN_DECISIONS.md`): ícones de botão que mostram os botões reais
+do Deck (isso exige integrar a Steamworks SDK), e build/empacotamento pra
+Steam em si (não existe pipeline de build neste repo). **Nada disso foi
+testado em hardware real** — não tenho Editor nem um Deck aqui; ver seção
+de verificação abaixo.
+
 ## Abrir no Unity
 
 1. Abra a pasta do projeto no Unity Hub / Unity Editor **2022.3 LTS**
@@ -70,12 +98,37 @@ entre level up e item, pensada pra não travar quando multiplayer entrar.
 
 ## Controles
 
-- Acelerar / ré: `W`/`↑` e `S`/`↓`
-- Virar: `A`/`←` e `D`/`→`
-- Drift: `Shift` ou `Space` (segure enquanto vira; solte para ganhar o
-  boost do mini-turbo se segurou tempo suficiente)
-- Ao completar uma volta: o jogo pausa e abre um painel — clique com o
-  mouse num dos upgrades pra escolher e continuar.
+| Ação | Teclado | Controle |
+| --- | --- | --- |
+| Acelerar / ré | `W`/`↑` e `S`/`↓` | Analógico esquerdo (frente/trás) |
+| Virar | `A`/`←` e `D`/`→` | Analógico esquerdo (esquerda/direita) |
+| Drift | `Shift` ou `Space` | Botão sul (A/Cross) ou ombro direito (RB/R1) |
+| Navegar no painel de escolha | `↑`/`↓` ou `W`/`S` | Analógico ou d-pad |
+| Confirmar escolha | `Enter` ou `Space` | Botão sul (A/Cross) |
+
+Drift: segure enquanto vira; solte para ganhar o boost do mini-turbo se
+segurou tempo suficiente. O painel de level up/item também aceita clique
+de mouse em qualquer opção, além da navegação por teclado/controle acima.
+
+## Verificar controle/Steam Deck (não testado neste ambiente)
+
+Sem Editor nem hardware aqui, nada disto foi confirmado rodando de
+verdade. Ao testar:
+
+- [ ] Conectar um controle (Xbox/Xinput ou Steam Deck em modo Desktop com
+      controle) antes de dar Play e conferir se dirige com o analógico
+      esquerdo e faz drift com A/RB.
+- [ ] Conferir que teclado continua funcionando junto (sem precisar
+      desconectar o controle).
+- [ ] Completar uma volta / pegar um item e navegar o painel só com
+      teclado (sem mouse), depois só com controle (sem mouse).
+- [ ] No Steam Deck: rodar via Steam (Desktop Mode primeiro é mais fácil
+      de depurar) com o template de Input padrão "Gamepad" e repetir os
+      itens acima.
+- [ ] Build Linux nativo (Unity Hub → instalar "Linux Build Support") ou
+      build Windows rodando via Proton — qualquer um deveria funcionar,
+      já que o projeto não usa plugins nativos nem nada específico de
+      plataforma.
 
 ## Testes headless (fora do Editor)
 
@@ -109,6 +162,8 @@ Assets/Scripts/
   Core/     GameBootstrap (monta tudo em runtime)
 Assets/Scenes/
   Prototype_KartMovement.unity
+ProjectSettings/
+  InputManager.asset (eixos teclado + joystick, commitado explicitamente)
 Tests/RoguelikeRacing.Logic.Tests/
   Testes headless (dotnet test) do KartPhysicsMath
 docs/

@@ -166,6 +166,61 @@ Caixa de item reaparece depois de um cooldown (`ItemBox`, coroutine) em
 vez de sumir depois de coletada — numa corrida de várias voltas, caixa que
 não volta significa a pista ficar sem item já na segunda volta.
 
+## Input: teclado + controle, incluindo Steam Deck
+Pedido: o jogo tem que rodar no Steam Deck e reconhecer controle ou
+teclado. Decisões tomadas:
+
+**Legacy Input Manager em vez do pacote novo Input System.** A Unity tem
+dois sistemas de input: o legado (`UnityEngine.Input`, configurado via
+`ProjectSettings/InputManager.asset`) e o pacote novo `com.unity.inputsystem`
+(action maps, mais moderno, também funciona bem no Deck). Fiquei com o
+legado porque: (1) o pacote novo precisaria de mais um pacote no
+`manifest.json` (mais uma dependência baixada na primeira abertura) e de
+um asset de Input Actions com schema próprio — dando pra hand-authorar
+sem Editor, mas é bem mais arriscado de acertar sem poder validar; (2) o
+legado já resolve o pedido (teclado + controle reconhecidos) com uma
+mudança pequena e de baixo risco: um `InputManager.asset` com 4 entradas
+de eixo, que eu validei sintaticamente com um parser YAML (não é o
+parser da Unity, mas confirma que a estrutura/campos batem com o que a
+Unity espera). Se mais pra frente precisar de coisa que o legado não
+faz bem (rebind de tecla pelo jogador, vibração/rumble, mostrar o ícone
+certo do botão dependendo do controle conectado), aí vale migrar — não
+antes.
+
+**Acelerar/ré no eixo Y do analógico, não nos gatilhos.** Gatilho
+analógico (RT/LT) exigiria mapear o "3º/4º eixo" do joystick, cujo índice
+varia bastante entre driver/SO — no Linux/Steam Deck especificamente isso
+é uma fonte conhecida de inconsistência com o Input Manager legado (é
+inclusive uma das razões de existir o Input System novo). Manter tudo no
+analógico esquerdo (X = virar, Y = acelerar/ré, igual W/S no teclado)
+evita esse problema por completo e continua sendo um esquema de controle
+comum em jogo de corrida.
+
+**Drift lido direto por `KeyCode.JoystickButton0`/`5`, sem depender do
+`InputManager.asset`.** Filtrei pra usar `KeyCode` puro em vez de mais
+eixos nomeados no arquivo de config: `KeyCode.JoystickButtonN` (sem
+número de joystick) já significa "botão N em qualquer controle
+conectado" nativamente na Unity, então funciona sem eu precisar acertar
+mais nenhuma entrada de YAML. Isso reduz a superfície de coisa que pode
+dar errado sem eu poder testar.
+
+**Painel de pausa (level up/item) ganhou navegação por teclado/controle.**
+Isso não era sobre o Steam Deck especificamente — era um buraco real: o
+`PauseChoiceUI` só aceitava clique de mouse, então um jogo 100% teclado ou
+100% controle travava sem solução no primeiro level up. Corrigido com
+seta/analógico pra navegar e Enter/Space/botão sul pra confirmar, mouse
+continua funcionando também.
+
+**Fora do escopo por decisão, não por esquecimento:**
+- Ícones de botão específicos do Steam Deck (mostrar o botão real do
+  Deck em vez de "A"/"RB" genérico) exige integrar a Steamworks SDK
+  (`ISteamInput`) — é uma dependência nativa e créditos de App ID que não
+  faz sentido puxar pra esse estágio do protótipo.
+- Não existe pipeline de build/empacotamento pra Steam neste repo (não
+  foi pedido, e não dá pra testar isso sem Steamworks/loja configurada).
+- Nada disso foi testado num Deck real ou mesmo no Editor — ver
+  checklist de verificação no `README.md`.
+
 ## Pista e kart
 - Pista: oval fechado gerado por código (`TrackBuilder.cs`), cubos para
   pista/muros, sem malha externa.

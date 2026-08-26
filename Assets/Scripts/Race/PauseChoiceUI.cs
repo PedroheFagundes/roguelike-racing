@@ -9,6 +9,12 @@ namespace RoguelikeRacing.Race
     /// (step 4) and item boxes (step 5) so both go through the same pause/apply path
     /// instead of each rolling their own.
     ///
+    /// Fully operable by mouse, keyboard, or gamepad: arrow keys/WASD or the left
+    /// stick/d-pad move a highlighted selection, Enter/Space/the South face button
+    /// confirms it, and clicking a button with the mouse still works too. This matters
+    /// as much as in-race controls do — the original version was mouse-only, which broke
+    /// keyboard/gamepad-only play the moment a lap or item box paused the game.
+    ///
     /// This is the v1/single-player default documented in docs/DESIGN_DECISIONS.md:
     /// pausing everything is the simplest thing that works when there's only one human
     /// to wait on. Moving to multiplayer later means adding a per-decision timeout and
@@ -17,9 +23,13 @@ namespace RoguelikeRacing.Race
     /// </summary>
     public class PauseChoiceUI : MonoBehaviour
     {
+        const float NavRepeatDelaySeconds = 0.2f;
+
         string _headerText = "Choose one";
         List<ChoicePrompt> _options;
         float _previousTimeScale = 1f;
+        int _selectedIndex;
+        float _navRepeatTimer;
 
         public bool IsOpen => _options != null;
 
@@ -29,8 +39,53 @@ namespace RoguelikeRacing.Race
 
             _headerText = header;
             _options = options;
+            _selectedIndex = 0;
+            _navRepeatTimer = 0f;
             _previousTimeScale = Time.timeScale;
             Time.timeScale = 0f;
+        }
+
+        void Update()
+        {
+            if (_options == null) return;
+
+            HandleNavigation();
+
+            bool confirm = Input.GetKeyDown(KeyCode.Return)
+                || Input.GetKeyDown(KeyCode.KeypadEnter)
+                || Input.GetKeyDown(KeyCode.Space)
+                || Input.GetKeyDown(KeyCode.JoystickButton0);
+
+            if (confirm) Choose(_options[_selectedIndex]);
+        }
+
+        void HandleNavigation()
+        {
+            int step = 0;
+            if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)) step = 1;
+            else if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)) step = -1;
+
+            // Stick/d-pad axes have no *Down event, so drive them with a manual repeat
+            // timer using unscaled time — Time.deltaTime is 0 while the game is paused.
+            float stickY = Input.GetAxisRaw("Vertical");
+            if (Mathf.Abs(stickY) > 0.5f)
+            {
+                _navRepeatTimer -= Time.unscaledDeltaTime;
+                if (_navRepeatTimer <= 0f)
+                {
+                    step = stickY > 0f ? -1 : 1;
+                    _navRepeatTimer = NavRepeatDelaySeconds;
+                }
+            }
+            else
+            {
+                _navRepeatTimer = 0f;
+            }
+
+            if (step != 0)
+            {
+                _selectedIndex = (_selectedIndex + step + _options.Count) % _options.Count;
+            }
         }
 
         void OnGUI()
@@ -40,7 +95,8 @@ namespace RoguelikeRacing.Race
             const float panelWidth = 460f;
             const float buttonHeight = 70f;
             const float buttonSpacing = 12f;
-            float panelHeight = 90f + _options.Count * (buttonHeight + buttonSpacing);
+            const float footerHeight = 26f;
+            float panelHeight = 90f + _options.Count * (buttonHeight + buttonSpacing) + footerHeight;
 
             var panelRect = new Rect(
                 (Screen.width - panelWidth) * 0.5f,
@@ -63,6 +119,7 @@ namespace RoguelikeRacing.Race
                 alignment = TextAnchor.MiddleLeft,
                 wordWrap = true
             };
+            var selectedButtonStyle = new GUIStyle(buttonStyle) { fontStyle = FontStyle.Bold };
 
             for (int i = 0; i < _options.Count; i++)
             {
@@ -72,12 +129,24 @@ namespace RoguelikeRacing.Race
                     panelRect.y + 60f + i * (buttonHeight + buttonSpacing),
                     panelWidth - 30f, buttonHeight);
 
-                if (GUI.Button(buttonRect, $"  {option.Title}\n  {option.Description}", buttonStyle))
+                string marker = i == _selectedIndex ? ">> " : "   ";
+                GUIStyle style = i == _selectedIndex ? selectedButtonStyle : buttonStyle;
+
+                if (GUI.Button(buttonRect, $"{marker}{option.Title}\n{marker}{option.Description}", style))
                 {
                     Choose(option);
                     break;
                 }
             }
+
+            var footerStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 12,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true
+            };
+            var footerRect = new Rect(panelRect.x + 10f, panelRect.yMax - footerHeight, panelRect.width - 20f, footerHeight);
+            GUI.Label(footerRect, "Up/Down or stick to choose, Enter/Space/A to confirm, or click", footerStyle);
         }
 
         void Choose(ChoicePrompt option)
