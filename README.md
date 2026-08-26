@@ -90,6 +90,12 @@ Implementado:
   desproporcionalmente pequenos em monitor grande. Nunca encolhe abaixo do
   tamanho original, só cresce em tela maior que a referência (600px de
   altura).
+- Corrigido kart "preso"/tremendo contra parede (bug real, confirmado por
+  pesquisa — ver `docs/DESIGN_DECISIONS.md`): a causa era definir a
+  velocidade do kart direto todo frame, o que anulava qualquer resposta
+  de colisão da física antes dela fazer efeito. `KartController` agora
+  faz "collide and slide": desliza ao longo da parede em vez de travar, e
+  sai livre assim que o volante aponta pra longe dela.
 
 Não implementado ainda (propositalmente, por ordem de trabalho):
 rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`

@@ -421,3 +421,76 @@ só que ficou proporcionalmente maior em telas grandes, que era o problema
 relatado. Se ainda estiver pequeno ou ficar grande demais, me diga a
 resolução da sua tela/janela que eu ajusto a altura de referência (o
 `600` em `OnGuiScale.cs`) diretamente, em vez de tentar adivinhar de novo.
+
+## Kart preso na parede (tremendo, quase não sai) — pesquisa e correção
+
+Você reportou: encostado numa parede, apertar pra longe dela quase não
+move o kart, e ele fica "tremendo". Pesquisei antes de mexer (3 buscas)
+em vez de só supor, porque isso é um bug clássico e bem documentado, não
+uma peculiaridade nossa.
+
+**Causa raiz, confirmada por um post do fórum da Unity sobre exatamente
+esse sintoma:** desde o passo 1, o `KartController` define
+`_rb.linearVelocity` direto, todo `FixedUpdate`, a partir só do input
+(`transform.forward * velocidade`) — nunca deixa o resultado da colisão
+do frame anterior influenciar o próximo. Na prática: o kart bate na
+parede, a física da Unity resolve a penetração daquele frame, mas no
+frame seguinte o meu código já reescreve a velocidade de novo apontando
+pra dentro da parede — o kart nunca acumula deslizamento nenhum, fica
+"brigando" com a parede a cada frame, o que lê como tremor/travamento.
+O fórum descreve o efeito exato: "pode parecer que tem 100% de fricção
+contra a parede, mesmo com o Physic Material configurado em fricção 0"
+— e é isso: o `PhysicsMaterial` de baixa fricção que configurei lá no
+passo 1 nunca fazia diferença nenhuma nesse cenário, porque eu sobrescrevo
+a velocidade antes da fricção conseguir agir.
+
+**Correção: "collide and slide" (a mesma técnica que a documentação
+oficial do Character Controller da própria Unity recomenda para deslizar
+em paredes)** — em vez de zerar/travar a velocidade contra a parede,
+removo só a componente da velocidade desejada que aponta *pra dentro* da
+parede, mantendo a componente tangencial (ao longo da superfície). Isso
+significa:
+- Bater de frente numa parede: perde a velocidade que ia contra ela, mas
+  qualquer componente lateral já existente continua — desliza em vez de
+  travar.
+- Virar o volante pra longe da parede: a velocidade desejada deixa de
+  apontar pra dentro dela, a projeção não faz mais nada (é um no-op), e o
+  kart sai livre imediatamente — que é exatamente o "aperta pra direita e
+  quase não sai" que você reportou.
+
+Implementado em `KartController.cs`: `OnCollisionEnter`/`OnCollisionStay`
+guardam a normal de contato (só as que são "parede de verdade", filtrando
+por `Mathf.Abs(normal.y) < 0.5`, pra não confundir com o chão) num
+dicionário por collider (`OnCollisionExit` remove); `ApplyVelocity` usa a
+normal combinada de todos os contatos ativos pra fazer a projeção antes
+de escrever a velocidade. Funciona pra IA também de graça, já que é tudo
+dentro do `KartController` compartilhado.
+
+**Efeito colateral esperado, não testado:** como `_forwardSpeed` (a
+velocidade "interna" que o acelerador constrói) continua subindo enquanto
+o kart está preso e o jogador segura o acelerador — ela só é sobrescrita
+na hora de aplicar na `Rigidbody`, não é zerada pelo contato — é possível
+que, depois de ficar um tempo preso encostado numa parede acelerando, ao
+virar pra sair o kart "dispare" com bastante velocidade acumulada (tipo
+um efeito de estilingue). Pode ser que fique com uma sensação legal
+(vários kart racers têm algo parecido ao "raspar" na parede), ou pode
+incomodar — não dá pra saber sem jogar. Se incomodar, o próximo ajuste
+seria reduzir `_forwardSpeed` ativamente enquanto há contato de parede
+(um "freio" ao bater), em vez de só redirecionar — não implementei isso
+agora porque não foi o problema relatado e eu não queria mudar mais coisa
+do que o necessário sem poder testar.
+
+**O que pesquisei e decidi NÃO mudar** (fica registrado pra não
+reconsiderar do zero depois): mudar toda a arquitetura de "velocidade
+definida direto" pra "força aplicada via `AddForce`/`AddTorque`" é
+outra abordagem genuína usada em vários kart racers (inclusive é o que
+tutoriais oficiais da Unity pra veículo arcade costumam fazer) — mas
+seria uma reescrita bem maior, mexeria em todo o tuning já feito (drift,
+boost, upgrades), e o "collide and slide" já resolve o sintoma relatado
+sem esse risco. Fica como alternativa se o slide não for suficiente.
+
+Sources:
+- [Set RigidBody velocity in FixedUpdate() or Start()? - Unity Discussions](https://forum.unity.com/threads/set-rigidbody-velocity-in-fixedupdate-or-start.908045/)
+- [Limit sliding along walls - Unity Character Controller docs](https://docs.unity3d.com/Packages/com.unity.charactercontroller@1.3/manual/prevent-sliding-along-wall.html)
+- [Arcade car physics - GameDev.net Forums](https://gamedev.net/forums/topic/699625-arcade-car-physics/5394113/)
+- [Arcade Kart Physics - Unity Discussions](https://forum.unity.com/threads/arcade-kart-physics.171399/)

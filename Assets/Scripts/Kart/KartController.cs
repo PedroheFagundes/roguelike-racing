@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace RoguelikeRacing.Kart
@@ -5,9 +6,17 @@ namespace RoguelikeRacing.Kart
     /// <summary>
     /// Arcade kart movement driven by a Rigidbody. Velocity is authored each FixedUpdate
     /// from input (not accumulated via AddForce), which is the common "arcade kart" trick:
-    /// it gives precise, predictable control and turns wall contacts into smooth sliding
-    /// instead of chaotic bouncing. Gravity is preserved on the Y axis so the Rigidbody
-    /// still falls/rests naturally on the track collider.
+    /// it gives precise, predictable control. Gravity is preserved on the Y axis so the
+    /// Rigidbody still falls/rests naturally on the track collider.
+    ///
+    /// Authoring velocity directly means the physics engine's own collision response
+    /// gets overwritten every single FixedUpdate before it can do anything useful — hit
+    /// a wall and the kart just re-aims itself straight back into it next step, which
+    /// reads as being stuck/vibrating in place no matter how hard you steer away. The
+    /// fix (see ApplyWallSlide) is the standard "collide and slide" technique: track
+    /// wall contact normals and clip the into-wall component of the desired velocity
+    /// each frame, same as Unity's own Character Controller docs recommend for wall
+    /// sliding. See docs/DESIGN_DECISIONS.md for the research behind this.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     public class KartController : MonoBehaviour
@@ -40,7 +49,12 @@ namespace RoguelikeRacing.Kart
         [Tooltip("0 = ApplySlow (oil slick/shockwave) applies at full strength, 1 = fully immune. Raised by the Blindagem level-up.")]
         public float slowResistance = 0f;
 
+        [Header("Wall Collision")]
+        [Tooltip("Contact normals steeper than this (dot with world up) count as ground/ramp, not a wall, and are ignored for wall sliding.")]
+        public float wallNormalMaxVerticalComponent = 0.5f;
+
         Rigidbody _rb;
+        readonly Dictionary<Collider, Vector3> _wallContactNormals = new Dictionary<Collider, Vector3>();
 
         float _throttleInput;
         float _steerInput;
@@ -128,6 +142,44 @@ namespace RoguelikeRacing.Kart
         {
             Vector3 origin = transform.position + Vector3.up * 0.5f;
             _grounded = Physics.Raycast(origin, Vector3.down, groundCheckDistance + 0.5f, groundMask);
+        }
+
+        // Track which colliders we're currently touching that count as a "wall" (a
+        // contact whose normal is mostly horizontal, as opposed to the ground/a ramp),
+        // and their normal, so ApplyVelocity can clip against them. Keyed by the other
+        // collider so touching two walls at once (a corner) and leaving one doesn't
+        // wipe out the other's contact.
+        void OnCollisionEnter(Collision collision) => UpdateWallContact(collision);
+        void OnCollisionStay(Collision collision) => UpdateWallContact(collision);
+
+        void OnCollisionExit(Collision collision)
+        {
+            _wallContactNormals.Remove(collision.collider);
+        }
+
+        void UpdateWallContact(Collision collision)
+        {
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+
+            for (int i = 0; i < collision.contactCount; i++)
+            {
+                Vector3 normal = collision.GetContact(i).normal;
+                if (Mathf.Abs(normal.y) < wallNormalMaxVerticalComponent)
+                {
+                    sum += normal;
+                    count++;
+                }
+            }
+
+            if (count > 0)
+            {
+                _wallContactNormals[collision.collider] = (sum / count).normalized;
+            }
+            else
+            {
+                _wallContactNormals.Remove(collision.collider);
+            }
         }
 
         void UpdateDrift(float dt)
@@ -229,9 +281,39 @@ namespace RoguelikeRacing.Kart
             }
 
             Vector3 targetVelocity = forwardVelocity + lateralVelocity;
+            targetVelocity = ApplyWallSlide(targetVelocity);
             targetVelocity.y = _rb.linearVelocity.y;
 
             _rb.linearVelocity = targetVelocity;
+        }
+
+        /// <summary>
+        /// "Collide and slide": if the desired velocity points into a wall we're
+        /// currently touching, remove exactly that inward component and keep the rest
+        /// (the part along the wall's surface). If it's already pointing away from the
+        /// wall (e.g. the player just steered off it), this is a no-op — nothing holds
+        /// the kart back once it's not driving into the wall anymore.
+        /// </summary>
+        Vector3 ApplyWallSlide(Vector3 desiredVelocity)
+        {
+            if (_wallContactNormals.Count == 0) return desiredVelocity;
+
+            Vector3 combinedNormal = Vector3.zero;
+            foreach (Vector3 normal in _wallContactNormals.Values)
+            {
+                combinedNormal += normal;
+            }
+
+            if (combinedNormal.sqrMagnitude < 0.0001f) return desiredVelocity;
+            combinedNormal.Normalize();
+
+            float intoWall = Vector3.Dot(desiredVelocity, -combinedNormal);
+            if (intoWall > 0f)
+            {
+                desiredVelocity += combinedNormal * intoWall;
+            }
+
+            return desiredVelocity;
         }
     }
 }
