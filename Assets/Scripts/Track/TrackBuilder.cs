@@ -43,6 +43,13 @@ namespace RoguelikeRacing.Track
             BuildGroundPlane(trackRoot, centerlinePoints, groundMaterial);
             BuildRoadMesh(trackRoot, centerlinePoints, roadWidth, roadMaterial);
 
+            // Kart's chassis pitch/roll stay frozen (RigidbodyConstraints.FreezeRotationX |
+            // FreezeRotationZ, see KartController.Awake) -- it still climbs and descends
+            // elevation correctly via gravity/collision against this mesh, it just won't
+            // visually tilt to match the slope. Deliberately left that way: unfreezing
+            // rotation to align the chassis to the ground normal is real extra work with no
+            // way for me to playtest it right now, so it's out of scope for this pass.
+
             int count = centerlinePoints.Count;
             float halfSpan = roadWidth * 0.5f + wallThickness * 0.5f;
 
@@ -90,11 +97,22 @@ namespace RoguelikeRacing.Track
             Vector3 startDir = (centerlinePoints[1] - centerlinePoints[0]).normalized;
             Vector3 startPos = centerlinePoints[0] - startDir * 2f + Vector3.up * 0.4f;
 
+            // Karts spawn with a level chassis (pitch/roll frozen, see the comment above),
+            // so the spawn rotation itself must be yaw-only too -- a start/finish line placed
+            // on a sloped stretch would otherwise point a level kart's forward axis into the
+            // ground or sky. Elevation profiles are chosen to keep the area around the
+            // start/finish flat anyway (see each Generate*Centerline's jump placement), so
+            // this is mostly a safety net.
+            Vector3 startYawDir = startDir;
+            startYawDir.y = 0f;
+            if (startYawDir.sqrMagnitude < 0.0001f) startYawDir = Vector3.forward;
+            startYawDir.Normalize();
+
             return new TrackData
             {
                 CenterlinePoints = centerlinePoints,
                 StartPosition = startPos,
-                StartRotation = Quaternion.LookRotation(startDir, Vector3.up),
+                StartRotation = Quaternion.LookRotation(startYawDir, Vector3.up),
                 RoadWidth = roadWidth
             };
         }
@@ -108,6 +126,13 @@ namespace RoguelikeRacing.Track
                 float t = (i / (float)segments) * Mathf.PI * 2f;
                 points.Add(new Vector3(Mathf.Cos(t) * radiusX, 0f, Mathf.Sin(t) * radiusZ));
             }
+
+            ApplyElevation(points,
+                new JumpBump(0.15f, 4f, 14f),
+                new JumpBump(0.42f, 7f, 10f),
+                new JumpBump(0.62f, 4f, 14f),
+                new JumpBump(0.85f, 7f, 10f));
+
             return points;
         }
 
@@ -127,7 +152,15 @@ namespace RoguelikeRacing.Track
             points.Add(new Vector3(-halfStraight, 0f, -turnRadius));
             AppendArc(points, new Vector3(-halfStraight, 0f, 0f), turnRadius, -90f, -270f, segmentsPerTurn);
 
-            return DedupeClosedLoop(points);
+            List<Vector3> deduped = DedupeClosedLoop(points);
+
+            ApplyElevation(deduped,
+                new JumpBump(0.1f, 4f, 14f),
+                new JumpBump(0.35f, 7f, 10f),
+                new JumpBump(0.55f, 5f, 13f),
+                new JumpBump(0.78f, 7f, 10f));
+
+            return deduped;
         }
 
         /// <summary>
@@ -147,6 +180,13 @@ namespace RoguelikeRacing.Track
                 float angle = (i / (float)radii.Length) * Mathf.PI * 2f;
                 points.Add(new Vector3(Mathf.Cos(angle) * radii[i], 0f, Mathf.Sin(angle) * radii[i]));
             }
+
+            ApplyElevation(points,
+                new JumpBump(0.15f, 5f, 13f),
+                new JumpBump(0.35f, 7f, 10f),
+                new JumpBump(0.55f, 4f, 14f),
+                new JumpBump(0.8f, 7f, 10f));
+
             return points;
         }
 
@@ -158,6 +198,91 @@ namespace RoguelikeRacing.Track
                 float angleRad = Mathf.Deg2Rad * Mathf.Lerp(startAngleDeg, endAngleDeg, t);
                 points.Add(center + new Vector3(Mathf.Cos(angleRad), 0f, Mathf.Sin(angleRad)) * radius);
             }
+        }
+
+        /// <summary>
+        /// One uphill-then-downhill bump along a closed centerline loop: rises smoothly to
+        /// PeakHeight at CenterFraction (0..1, position around the loop by arc length, not
+        /// by point index -- point spacing isn't uniform, especially on the Technical
+        /// track's mix of tight and wide radii) and eases back to flat over HalfWidth
+        /// meters on each side. HalfWidth is an absolute distance rather than a fraction of
+        /// the loop so the peak slope -- and therefore how "radical" a jump feels -- stays
+        /// the same regardless of how long the track is.
+        /// </summary>
+        readonly struct JumpBump
+        {
+            public readonly float CenterFraction;
+            public readonly float PeakHeight;
+            public readonly float HalfWidth;
+
+            public JumpBump(float centerFraction, float peakHeight, float halfWidth)
+            {
+                CenterFraction = centerFraction;
+                PeakHeight = peakHeight;
+                HalfWidth = halfWidth;
+            }
+        }
+
+        /// <summary>
+        /// Bakes elevation into a flat (Y=0) closed centerline by summing a half-cosine
+        /// bump per JumpBump -- cosine rather than a linear ramp so the slope eases in and
+        /// out of each hill instead of kinking hard at the shoulders, which would read as a
+        /// pothole/curb rather than a hill.
+        ///
+        /// Peak slope of a single bump is PeakHeight * pi / (2 * HalfWidth) (radians); the
+        /// bumps below are all chosen to land around 20-30 degrees for rolling hills and
+        /// ~48 degrees for the "radical" jumps, comfortably under the ~60 degree point
+        /// where KartController's wall-slide code (wallNormalMaxVerticalComponent = 0.5,
+        /// i.e. a collision normal is only trusted as "ground" while normal.y = cos(slope)
+        /// stays above 0.5) would start treating the ramp surface as a wall instead of
+        /// ground to drive up.
+        /// </summary>
+        static void ApplyElevation(List<Vector3> points, params JumpBump[] bumps)
+        {
+            if (bumps.Length == 0) return;
+
+            int count = points.Count;
+            float loopLength = LoopDistance(points);
+            if (loopLength < 0.001f) return;
+
+            var arcLength = new float[count];
+            float accumulated = 0f;
+            for (int i = 0; i < count; i++)
+            {
+                arcLength[i] = accumulated;
+                accumulated += Vector3.Distance(points[i], points[(i + 1) % count]);
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                float height = 0f;
+                foreach (JumpBump bump in bumps)
+                {
+                    float bumpCenter = bump.CenterFraction * loopLength;
+                    float distance = Mathf.Abs(arcLength[i] - bumpCenter);
+                    distance = Mathf.Min(distance, loopLength - distance);
+
+                    if (distance < bump.HalfWidth)
+                    {
+                        float t = distance / bump.HalfWidth;
+                        float profile = (Mathf.Cos(t * Mathf.PI) + 1f) * 0.5f;
+                        height += profile * bump.PeakHeight;
+                    }
+                }
+
+                points[i] = new Vector3(points[i].x, height, points[i].z);
+            }
+        }
+
+        static float LoopDistance(List<Vector3> points)
+        {
+            float total = 0f;
+            int count = points.Count;
+            for (int i = 0; i < count; i++)
+            {
+                total += Vector3.Distance(points[i], points[(i + 1) % count]);
+            }
+            return total;
         }
 
         static List<Vector3> DedupeClosedLoop(List<Vector3> points)
@@ -180,17 +305,26 @@ namespace RoguelikeRacing.Track
         static void BuildGroundPlane(Transform parent, List<Vector3> points, Material material)
         {
             float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+            float minY = 0f;
             foreach (Vector3 p in points)
             {
                 minX = Mathf.Min(minX, p.x);
                 maxX = Mathf.Max(maxX, p.x);
                 minZ = Mathf.Min(minZ, p.z);
                 maxZ = Mathf.Max(maxZ, p.z);
+                minY = Mathf.Min(minY, p.y);
             }
 
             const float padding = 40f;
-            Vector3 center = new Vector3((minX + maxX) * 0.5f, -0.5f, (minZ + maxZ) * 0.5f);
-            Vector3 size = new Vector3((maxX - minX) + padding, 1f, (maxZ - minZ) + padding);
+            const float thickness = 1f;
+
+            // Top face sits just under the lowest centerline point instead of a hardcoded
+            // Y=0 -- on a flat track that's the same as before, but once elevation dips a
+            // hill's shoulders back toward 0 the old fixed plane could poke through the
+            // road mesh right at the base of a ramp.
+            float topY = minY - 0.05f;
+            Vector3 center = new Vector3((minX + maxX) * 0.5f, topY - thickness * 0.5f, (minZ + maxZ) * 0.5f);
+            Vector3 size = new Vector3((maxX - minX) + padding, thickness, (maxZ - minZ) + padding);
 
             var ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ground.name = "Ground";
@@ -200,8 +334,9 @@ namespace RoguelikeRacing.Track
             ground.GetComponent<Renderer>().sharedMaterial = material;
         }
 
-        // Ground plane's top face sits at Y=0 (see BuildGroundPlane); lifting the road
-        // mesh slightly above it avoids the two coplanar surfaces z-fighting/flickering.
+        // Lifting the road mesh slightly above the centerline's raw Y avoids z-fighting
+        // with the ground plane, whose top face sits just below the lowest centerline
+        // point (see BuildGroundPlane) -- on a flat track that's the same old Y=0 case.
         const float RoadSurfaceHeight = 0.08f;
 
         /// <summary>

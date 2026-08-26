@@ -44,28 +44,50 @@ Implementado:
 
 - Level up por volta (`LevelUpController`, só no kart do jogador): ao
   completar volta, pausa o jogo (`Time.timeScale = 0`) e mostra um painel
-  (`PauseChoiceUI`, `OnGUI`) com 3 upgrades sorteados sem repetição de um
-  catálogo de **7** (`KartUpgradeCatalog`): +velocidade máxima,
-  +aceleração, +taxa de curva, +boost do mini-turbo, **Blindagem**
-  (resiste a mancha de óleo/pulso de choque), **Tração** (atinge curva
-  máxima com menos velocidade) e **Reflexo de piloto** (mini-turbo exige
-  menos tempo de drift). Efeito permanente e cumulativo (multiplicativo)
-  pro resto da corrida. IA não vê esse painel — ao completar volta, ganha
-  um upgrade aleatório do mesmo catálogo aplicado na hora, sem pausa, só
-  pra não ficar pra trás do jogador enquanto ele sobe de nível.
+  (`PauseChoiceUI`, `OnGUI`) com 3 upgrades sorteados sem repetição
+  (`RandomPick`) de um catálogo de **11** (`KartUpgradeCatalog`):
+  +velocidade máxima, +aceleração, +taxa de curva, +boost do mini-turbo,
+  **Blindagem** (resiste a mancha de óleo/pulso de choque), **Tração**
+  (atinge curva máxima com menos velocidade), **Reflexo de piloto**
+  (mini-turbo exige menos tempo de drift), **Freio competitivo**
+  (+frenagem), **Rolamento leve** (perde menos velocidade soltando o
+  acelerador), **Marcha a ré reforçada** (+velocidade de ré) e **Turbo
+  prolongado** (+duração do boost do mini-turbo). Efeito permanente e
+  cumulativo (multiplicativo) pro resto da corrida. IA não vê esse painel
+  — ao completar volta, ganha um upgrade aleatório do mesmo catálogo
+  aplicado na hora, sem pausa, só pra não ficar pra trás do jogador
+  enquanto ele sobe de nível.
 
 - Caixas de item (`ItemBox`, `ItemBoxBuilder`): 5 caixas giratórias
   espalhadas pela pista, alternando lado esquerdo/direito da linha de
-  corrida. Ao tocar, o jogador pausa e escolhe 1 dos 4 itens
-  (`ItemCatalog`, mesmo painel `PauseChoiceUI` do level up): Nitro
-  (velocidade temporária), Escudo (bloqueia o próximo efeito ofensivo),
-  Mancha de óleo (larga um obstáculo atrás que desacelera quem passar por
-  cima) e Pulso de choque (desacelera na hora todo mundo perto). **Item
-  escolhido fica guardado** (`KartInventory`, 1 slot) até o jogador
-  apertar o botão de usar — não é mais aplicado na hora da escolha. IA
-  toca a caixa, ganha um item aleatório do mesmo catálogo e usa na hora
-  (ela ainda não tem estratégia de "quando" usar). Caixa reaparece depois
-  de um cooldown em vez de sumir de vez.
+  corrida. Ao tocar, o jogador pausa e escolhe 1 de **4 itens sorteados
+  sem repetição** (`RandomPick`, mesmo helper do level up) de um catálogo
+  de **8** (`ItemCatalog`, mesmo painel `PauseChoiceUI` do level up):
+  Nitro (velocidade temporária), **Overdrive** (versão mais forte/longa
+  do Nitro), Escudo (bloqueia o próximo efeito ofensivo), Mancha de óleo
+  (larga um obstáculo atrás que desacelera quem passar por cima),
+  **Investida** (mesmo obstáculo, mas largado à frente — bloqueia quem
+  vem atrás numa curva), Pulso de choque (desacelera na hora todo mundo
+  perto), **Míssil teleguiado** (persegue o kart imediatamente à frente
+  na corrida, com curva limitada — dá pra desviar) e **Reviravolta**
+  (troca de posição com um kart aleatório da corrida). **Item escolhido
+  fica guardado** (`KartInventory`, 1 slot) até o jogador apertar o botão
+  de usar — não é mais aplicado na hora da escolha. IA toca a caixa,
+  ganha um item aleatório do catálogo completo e usa na hora (ela ainda
+  não tem estratégia de "quando" usar). Caixa reaparece depois de um
+  cooldown em vez de sumir de vez.
+- **Subida e descida em todas as pistas**, incluindo saltos "radicais":
+  cada traçado (`TrackBuilder.Generate*Centerline`) agora aplica 4
+  solavancos de elevação (`ApplyElevation`/`JumpBump`) ao longo da volta
+  — 2 morros suaves e 2 saltos mais íngremes — com transição suave
+  (perfil de meio-cosseno) e inclinação de pico calculada pra ficar bem
+  abaixo do limiar que o código de colisão usa pra distinguir chão de
+  parede. Pista, muro, checkpoint, caixa de item e waypoint de IA
+  acompanham a elevação automaticamente (todos derivam da mesma
+  `CenterlinePoints`). O chassi do kart continua nivelado (não inclina
+  pra acompanhar a rampa visualmente) — decisão de escopo registrada em
+  `docs/DESIGN_DECISIONS.md`, junto com os números exatos e o que
+  conferir ao testar.
 - IA também sobe de nível e usa item — ela nunca ficou de fora disso:
   ao completar volta ganha upgrade aleatório do catálogo (mesmo mecanismo
   desde o passo 4), e ao tocar caixa de item ganha e usa item aleatório

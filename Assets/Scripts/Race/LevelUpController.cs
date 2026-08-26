@@ -46,7 +46,7 @@ namespace RoguelikeRacing.Race
         {
             if (_pauseChoiceUI == null) return;
 
-            List<KartUpgrade> choices = PickRandomUpgrades(optionsPerLevelUp);
+            List<KartUpgrade> choices = RandomPick.Distinct(KartUpgradeCatalog.All, optionsPerLevelUp);
 
             var prompts = new List<ChoicePrompt>(choices.Count);
             foreach (KartUpgrade upgrade in choices)
@@ -55,22 +55,6 @@ namespace RoguelikeRacing.Race
             }
 
             _pauseChoiceUI.Open($"Level up! (volta {lapCount}) - escolha um upgrade", prompts);
-        }
-
-        static List<KartUpgrade> PickRandomUpgrades(int count)
-        {
-            var pool = new List<KartUpgrade>(KartUpgradeCatalog.All);
-            var picked = new List<KartUpgrade>();
-
-            count = Mathf.Min(count, pool.Count);
-            for (int i = 0; i < count; i++)
-            {
-                int index = Random.Range(0, pool.Count);
-                picked.Add(pool[index]);
-                pool.RemoveAt(index);
-            }
-
-            return picked;
         }
     }
 }

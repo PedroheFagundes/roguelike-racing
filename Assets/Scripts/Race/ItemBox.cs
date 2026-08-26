@@ -5,13 +5,13 @@ using UnityEngine;
 namespace RoguelikeRacing.Race
 {
     /// <summary>
-    /// Trigger box on the track. When the player's kart enters, pauses and offers all 4
-    /// items in ItemCatalog as a choice (PauseChoiceUI — same shared pattern as
-    /// LevelUpController); picking one HOLDS it in the kart's KartInventory rather than
-    /// applying it immediately — the player activates it later with the "use item"
-    /// button (see KartInput / RaceHud). AI karts skip the choice UI entirely, hold a
-    /// random item from the same catalog, and use it right away since they have no
-    /// timing strategy yet — see docs/DESIGN_DECISIONS.md.
+    /// Trigger box on the track. When the player's kart enters, pauses and offers
+    /// OptionsPerBox items sampled at random from ItemCatalog (PauseChoiceUI — same
+    /// shared pattern as LevelUpController); picking one HOLDS it in the kart's
+    /// KartInventory rather than applying it immediately — the player activates it later
+    /// with the "use item" button (see KartInput / RaceHud). AI karts skip the choice UI
+    /// entirely, hold a random item from the full catalog, and use it right away since
+    /// they have no timing strategy yet — see docs/DESIGN_DECISIONS.md.
     ///
     /// Respawns after a cooldown instead of being destroyed, so a single lap doesn't run
     /// the track dry of items.
@@ -21,6 +21,7 @@ namespace RoguelikeRacing.Race
     {
         public float respawnCooldownSeconds = 8f;
         public float spinDegreesPerSecond = 90f;
+        public int optionsPerBox = 4;
 
         PauseChoiceUI _pauseChoiceUI;
         GameObject _playerKart;
@@ -71,8 +72,9 @@ namespace RoguelikeRacing.Race
 
         void OpenChoiceForPlayer(KartInventory playerInventory)
         {
-            var prompts = new List<ChoicePrompt>(ItemCatalog.All.Count);
-            foreach (ItemDefinition item in ItemCatalog.All)
+            List<ItemDefinition> choices = RandomPick.Distinct(ItemCatalog.All, optionsPerBox);
+            var prompts = new List<ChoicePrompt>(choices.Count);
+            foreach (ItemDefinition item in choices)
             {
                 prompts.Add(new ChoicePrompt(item.Name, item.Description, () => playerInventory.Hold(item)));
             }

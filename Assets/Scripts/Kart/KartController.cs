@@ -55,6 +55,14 @@ namespace RoguelikeRacing.Kart
         [Tooltip("Contact normals steeper than this (dot with world up) count as ground/ramp, not a wall, and are ignored for wall sliding.")]
         public float wallNormalMaxVerticalComponent = 0.5f;
 
+        /// <summary>
+        /// Every KartController currently in the race, self-registered. Lets items that
+        /// need to know about other karts (a homing missile aiming at whoever's ahead, a
+        /// position-swap targeting a random other kart) find them without GameBootstrap
+        /// having to thread a registry through every item call.
+        /// </summary>
+        public static readonly List<KartController> ActiveKarts = new List<KartController>();
+
         Rigidbody _rb;
         readonly Dictionary<Collider, Vector3> _wallContactNormals = new Dictionary<Collider, Vector3>();
 
@@ -88,6 +96,27 @@ namespace RoguelikeRacing.Kart
             _rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
             _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+            ActiveKarts.Add(this);
+        }
+
+        void OnDestroy()
+        {
+            ActiveKarts.Remove(this);
+        }
+
+        /// <summary>
+        /// Zeroes all built-up speed/velocity. Used by the "Reviravolta" item after
+        /// teleporting a kart to a new spot, so it doesn't keep whatever momentum it had
+        /// before the swap (which would point the wrong way relative to its new position).
+        /// </summary>
+        public void ResetVelocity()
+        {
+            _forwardSpeed = 0f;
+            _boostSpeed = 0f;
+            _boostTimeRemaining = 0f;
+            _rb.linearVelocity = Vector3.zero;
+            _rb.angularVelocity = Vector3.zero;
         }
 
         /// <summary>

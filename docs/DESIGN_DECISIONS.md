@@ -681,3 +681,147 @@ sentir mais impactante que a velocidade base, igual CTR). Não toquei nos
 valores de boost (`driftBoostSpeedBonus`, `ApplyItemBoost` do Nitro, etc.)
 agora — se o boost ficar forte/fraco demais depois desse ajuste, é o
 próximo lugar pra olhar.
+
+## Mais itens/upgrades (com sorteio) + rampas/saltos em todas as pistas
+
+Pedido: crescer os catálogos de item e upgrade mantendo a mesma
+quantidade de opções mostradas por vez (sorteadas), e colocar subida/
+descida em todas as pistas, "algumas coisas bem radicais".
+
+**Sorteio: extraí `RandomPick.Distinct<T>` (`Assets/Scripts/Race/RandomPick.cs`)
+em vez de duplicar a lógica que já existia dentro de `LevelUpController`.**
+`LevelUpController` já sorteava 3 upgrades sem repetição de um catálogo
+maior — exatamente o comportamento que `ItemBox` precisava passar a ter
+pra caixa de item também mostrar um número fixo de opções (`ItemBox.
+optionsPerBox`, default 4) mesmo com o catálogo de item crescendo. Em vez
+de copiar o método privado de `LevelUpController` pra dentro de `ItemBox`,
+puxei os dois pra um helper genérico e compartilhado — o comportamento de
+sorteio (sem repetição, `Random.Range` removendo do pool) é idêntico nos
+dois lugares, então duplicar seria a mesma lógica escrita duas vezes.
+
+**Upgrades: 7 → 11.** Os 4 novos (Freio competitivo, Rolamento leve, Marcha
+a ré reforçada, Turbo prolongado) cobrem alavancas do `KartController` que
+ainda não tinham upgrade: frenagem (`brakeDeceleration`), freio-motor ao
+soltar o acelerador (`engineBrakeDeceleration`), velocidade de ré
+(`maxReverseSpeed`) e duração do boost do mini-turbo (`driftBoostDuration`).
+Mesmo padrão dos upgrades anteriores: multiplicador aplicado direto no
+campo público, empilha se escolher de novo.
+
+**Itens: 4 → 8.** Os 4 novos, cada um testando uma superfície de
+`ItemHazards` diferente:
+- **Overdrive** — igual ao Nitro mas mais forte e mais longo (mesmo
+  `ApplyItemBoost`, valores maiores); item "genérico bom" que também serve
+  de contraponto de raridade ao Nitro (mesmo catálogo, dois níveis de
+  impulso).
+- **Investida** — mesma mecânica da Mancha de óleo, mas larga **à frente**
+  do kart (`+forward` em vez de `-forward`) em vez de atrás — bloqueia
+  quem vem correndo atrás de você numa curva, em vez de rastro defensivo.
+- **Míssil teleguiado** — primeiro item ofensivo direcionado do jogo.
+  `ItemHazards.FireHomingMissile` acha o kart imediatamente à frente por
+  `LapTracker.Progress` (não atira se você já estiver em 1º — não tem alvo
+  fixo escolher) e spawna um `HomingMissile` (novo componente,
+  `Assets/Scripts/Race/HomingMissile.cs`): sem Rigidbody, um `Update()`
+  simples que gira em direção ao alvo com uma taxa máxima de curva (dá pra
+  desviar, não é um "auto-hit") e avança, aplicando `ApplySlow` ao
+  colidir. Isso exigiu uma lista estática de karts ativos
+  (`KartController.ActiveKarts`, self-registrado em `Awake`/`OnDestroy`)
+  pra achar "quem está à frente" sem precisar passar um registro por todo
+  `GameBootstrap`.
+- **Reviravolta** — troca de posição/rotação com um kart aleatório da
+  corrida (`ItemHazards.SwapPositions`, também via `ActiveKarts`), zerando
+  a velocidade dos dois depois (`KartController.ResetVelocity`, novo) pra
+  não carregar momentum apontando pra direção errada depois do teleporte.
+  É o item mais "caótico" de propósito — cobre o padrão clássico de kart
+  racer de ter pelo menos um item que embaralha a corrida em vez de só dar
+  vantagem incremental.
+
+## Subida e descida em todas as pistas
+
+**Abordagem: elevação aplicada na própria centerline (Y deixa de ser
+sempre 0), não uma malha de terreno separada.** Cada `Generate*Centerline`
+gera os pontos normalmente e, no fim, chama `TrackBuilder.ApplyElevation`
+somando um ou mais "solavancos" (`JumpBump`) de subida-e-descida suaves
+(perfil de meio-cosseno, pra a inclinação começar e terminar em zero em
+vez de fazer um "degrau" nos ombros do morro — isso leria como buraco/
+guia, não como ladeira). Como tudo já rio abaixo (`BuildRoadMesh`,
+`BuildWall`, `BuildCornerPost`, `CheckpointBuilder`, `ItemBoxBuilder`,
+`KartAIDriver`, grid de largada da IA em `GameBootstrap`) já consome
+`TrackData.CenterlinePoints` genericamente sem assumir Y=0, elevação
+"vaza" de graça pra pista, muro, poste de canto, checkpoint, caixa de
+item e waypoint de IA sem precisar tocar em nenhum desses arquivos —
+mesma aposta que compensou lá no passo 6 quando troquei o gerador de
+centerline por pista.
+
+**Posição do morro é por fração da volta (0..1), a largura é em metros
+absolutos.** Guardar a posição como fração faz sentido (cada pista tem um
+comprimento de volta diferente, "a 40% da volta" funciona pra qualquer
+uma). Mas a largura do morro (`HalfWidth`) tem que ser absoluta em metros,
+não fração — se fosse fração, a mesma "quantidade de pista" ocupada pelo
+morro em pistas de comprimentos diferentes resultaria em inclinações de
+pico bem diferentes (morro mais "espremido" numa pista curta = mais
+íngreme). Com largura absoluta, a inclinação de pico de cada `JumpBump` é
+sempre a mesma fórmula (`altura * π / (2 * largura)`), previsível
+independente da pista.
+
+**Inclinação de pico calculada pra ficar bem abaixo do limiar que o
+wall-slide já usa pra distinguir chão de parede.** O código de colisão
+(`KartController`, seção "Kart preso na parede" acima) já classifica uma
+normal de contato como parede quando `Mathf.Abs(normal.y) <
+wallNormalMaxVerticalComponent (0.5)` — e `normal.y = cos(ângulo da
+inclinação)`, então esse `0.5` corresponde a ~60° a partir da horizontal.
+Uma rampa mais íngreme que isso seria tratada como parede em vez de chão
+dirigível, o que seria um bug novo bem pior que o que estou tentando
+adicionar. Escolhi os valores de altura/largura de cada `JumpBump` pra
+ficar em ~20-31° nos morros suaves e ~48° nos saltos "radicais" pedidos —
+uns 12° de margem confortável abaixo do limiar de 60°, mesmo empilhando
+morros vizinhos que se sobrepõem um pouco.
+
+**Cada pista ganhou 4 `JumpBump`s (2 suaves + 2 "radicais" de ~48°),
+menos perto da largada.** Deixei a faixa perto da fração 0 (onde fica a
+linha de largada/chegada) sem morro de propósito — largar já numa ladeira
+seria estranho visualmente (ver próximo parágrafo) e também juntaria mal
+com o grid escalonado dos karts de IA atrás do jogador.
+
+**Chassi do kart continua nivelado (não inclina pra acompanhar a rampa) —
+decisão consciente, não esquecimento.** Registrei antes (seção "Rigidbody
+vs física simulada") que alinhar o chassi à normal do chão de verdade
+precisa soltar a trava `FreezeRotationX | FreezeRotationZ` e ligar isso a
+um raycast de suspensão — trabalho de verdade, e sem Editor pra testar
+isso é fácil de deixar o kart capotando ou tremendo na rampa em vez de
+melhorar a sensação. Optei por escopo menor e mais seguro pra essa
+passada: o kart já sobe/desce a elevação corretamente hoje (gravidade +
+colisão contra a malha da pista continuam funcionando normalmente — só a
+velocidade X/Z é que é sobrescrita por código, Y sempre foi só física),
+só não inclina visualmente o corpo. Efeito visual: você vai ver o kart
+"flutuando" sempre na horizontal enquanto sobe/desce a ladeira, em vez de
+inclinar o nariz pra cima/baixo. Se isso incomodar visualmente depois de
+testar, essa é a próxima coisa a implementar (é o "achado concreto, ainda
+sem implementar" que já tinha ficado registrado).
+
+**Também ajustei, por consequência direta da elevação deixar de ser
+sempre 0:**
+- `BuildGroundPlane` agora calcula o Y mínimo real entre os pontos da
+  centerline e posiciona o topo do plano-chão logo abaixo disso, em vez
+  de um `Y = -0.5` fixo — hoje isso não muda nada na prática (todos os
+  `JumpBump` são positivos, nenhuma pista desce abaixo de 0), mas evita
+  o chão atravessar a pista se algum dia eu adicionar um vale/depressão
+  (altura negativa).
+- A rotação de largada (`TrackBuilder.Build`) agora zera a componente Y
+  da direção antes de normalizar — com o chassi nivelado (trava de
+  rotação acima), a rotação de largada também precisa ser só de guinada
+  (yaw), senão um trecho de largada em rampa apontaria um kart nivelado
+  pra dentro do chão/céu. Na prática isso não deveria disparar (a faixa
+  perto da largada ficou sem morro, ver acima), mas é uma rede de
+  segurança barata caso eu erre a matemática de posicionamento dos
+  `JumpBump` numa pista futura.
+
+**Não testado visualmente (sem Editor) — o que conferir ao jogar:**
+altura/inclinação dos saltos "radicais" pareceu certa na conta, mas só
+dá pra confirmar rodando; se algum salto lançar o kart longe demais no
+ar (ou nem tirar do chão), os números pra ajustar são `PeakHeight`/
+`HalfWidth` de cada `JumpBump` dentro de `GenerateOvalCenterline`/
+`GenerateStadiumCenterline`/`GenerateTechnicalCenterline`. Se algum
+trecho de rampa disparar o bug de "preso na parede" da seção acima
+(sinal de que a inclinação real ficou mais íngreme que o previsto, por
+exemplo por sobreposição de dois `JumpBump` vizinhos empilhando mais do
+que a conta considerou), me avisa com a pista/posição pra eu recalcular.

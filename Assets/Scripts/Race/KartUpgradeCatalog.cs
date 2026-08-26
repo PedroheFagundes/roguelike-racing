@@ -3,10 +3,10 @@ using System.Collections.Generic;
 namespace RoguelikeRacing.Race
 {
     /// <summary>
-    /// The full pool of level-up upgrades: 7 entries, one per distinct KartController
-    /// knob, offered 3 at a time (see LevelUpController). Each is applied
-    /// multiplicatively (or additively for slowResistance, which is clamped at use time
-    /// in KartController.ApplySlow), so picking the same upgrade again on a later lap
+    /// The full pool of level-up upgrades, one per distinct KartController knob, offered
+    /// a few at a time (see LevelUpController). Each is applied multiplicatively (or
+    /// additively for slowResistance, which is clamped at use time in
+    /// KartController.ApplySlow), so picking the same upgrade again on a later lap
     /// keeps compounding rather than re-applying a fixed flat bonus.
     /// </summary>
     public static class KartUpgradeCatalog
@@ -18,6 +18,10 @@ namespace RoguelikeRacing.Race
         const float SlowResistanceBonus = 0.2f;
         const float TractionMultiplier = 0.85f;
         const float DriftBoostThresholdMultiplier = 0.8f;
+        const float BrakeMultiplier = 1.2f;
+        const float EngineBrakeMultiplier = 0.8f;
+        const float ReverseSpeedMultiplier = 1.2f;
+        const float DriftBoostDurationMultiplier = 1.25f;
 
         public static readonly List<KartUpgrade> All = new List<KartUpgrade>
         {
@@ -59,6 +63,26 @@ namespace RoguelikeRacing.Race
                 "Reflexo de piloto",
                 "Precisa de menos tempo de drift para ganhar o mini-turbo",
                 kart => kart.minDriftSecondsForBoost *= DriftBoostThresholdMultiplier),
+
+            new KartUpgrade(
+                "Freio competitivo",
+                "+20% na forca de frenagem",
+                kart => kart.brakeDeceleration *= BrakeMultiplier),
+
+            new KartUpgrade(
+                "Rolamento leve",
+                "Perde menos velocidade ao soltar o acelerador",
+                kart => kart.engineBrakeDeceleration *= EngineBrakeMultiplier),
+
+            new KartUpgrade(
+                "Marcha a re reforcada",
+                "+20% na velocidade de re",
+                kart => kart.maxReverseSpeed *= ReverseSpeedMultiplier),
+
+            new KartUpgrade(
+                "Turbo prolongado",
+                "+25% na duracao do boost do mini-turbo",
+                kart => kart.driftBoostDuration *= DriftBoostDurationMultiplier),
         };
     }
 }
