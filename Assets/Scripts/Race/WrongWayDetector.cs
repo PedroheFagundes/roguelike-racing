@@ -34,7 +34,7 @@ namespace RoguelikeRacing.Race
         {
             if (_centerline == null || _centerline.Count < 2) return;
 
-            Vector3 velocity = _rb.velocity;
+            Vector3 velocity = _rb.linearVelocity;
             velocity.y = 0f;
 
             // Direction is noise at near-zero speed, so don't flag while basically stopped.

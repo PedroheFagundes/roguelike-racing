@@ -366,3 +366,28 @@ de antes (`Action<KartController>`), só mudou quando ele é invocado — não
 foi preciso reescrever o catálogo de itens nem a UI de escolha, só o
 `ItemBox` (que agora chama `Hold` em vez de `Use` direto) e o `KartInput`
 (que agora também lê o botão de usar).
+
+## Descoberto ao integrar: o projeto roda em Unity 6, não 2022.3 LTS
+
+Você abriu o projeto no seu Unity Hub, e o que estava instalado aí era
+**Unity 6 (`6000.5.7f1`)**, não a 2022.3 LTS que eu tinha escolhido como
+alvo lá no passo 1 (decisão que tomei sem confirmar com você, baseada só
+em "é uma LTS comum" — deveria ter perguntado, ou pelo menos deixado mais
+claro que era um chute). O `.meta`/`ProjectSettings` que você commitou
+vieram dessa versão real, e junto vieram (a Unity ou você, via API
+Updater) 3 renomeações de API que o Unity 6 exige:
+`Rigidbody.velocity` → `Rigidbody.linearVelocity`,
+`Rigidbody.drag`/`angularDrag` → `linearDamping`/`angularDamping`, e
+`PhysicMaterial` → `PhysicsMaterial`. Ao integrar isso de volta pro meu
+código desta sessão, apliquei essas mesmas renomeações nos arquivos novos
+que ainda usavam os nomes antigos (`WrongWayDetector.cs` e o método
+`BuildCornerPost` que eu tinha acabado de escrever em `TrackBuilder.cs` —
+esses não existiam no seu commit, então o merge automático do git não
+tinha como saber que precisavam do mesmo ajuste). Atualizei
+`ProjectVersion.txt`/README pra refletir Unity 6 como versão real do
+projeto daqui pra frente.
+
+Isso também derruba a suposição registrada no passo 1 de que "Unity
+regenera `ProjectSettings`/`.meta` ausentes com defaults na primeira
+abertura" — isso continua verdade, mas eu não tinha como prever qual
+versão real do Editor você tinha instalada, e agora sabemos: Unity 6.

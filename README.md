@@ -123,13 +123,18 @@ de verificação abaixo.
 
 ## Abrir no Unity
 
-1. Abra a pasta do projeto no Unity Hub / Unity Editor **2022.3 LTS**
-   (`ProjectSettings/ProjectVersion.txt` pede `2022.3.21f1`; qualquer patch
-   2022.3.x deve funcionar).
-2. Primeira abertura vai baixar os pacotes do `Packages/manifest.json`
-   (precisa de internet) e vai gerar os arquivos `.meta` que faltam — isso
-   é esperado, este repo não commitou `.meta` ainda. **Depois de abrir uma
-   vez, rode `git status` e commite os `.meta` gerados** para fixar os GUIDs.
+**Testado e rodando em Unity 6 (`6000.5.7f1`)** — `.meta` e
+`ProjectSettings/*` já estão commitados a partir dessa versão real (não
+mais gerados na hora, como nas primeiras vezes). O código usa a API atual
+do `Rigidbody` (`linearVelocity`, `linearDamping`) e `PhysicsMaterial`
+(sem o "s" era o nome antigo, pré-Unity 6) — se abrir numa versão mais
+antiga (2022.3 LTS, por exemplo) vai dar erro de compilação nessas
+chamadas e vai precisar reverter pros nomes antigos.
+
+1. Abra a pasta do projeto no Unity Hub / Unity Editor **6000.5.x** (ou
+   mais recente da série Unity 6).
+2. Primeira abertura pode baixar/atualizar pacotes do
+   `Packages/manifest.json` (precisa de internet).
 3. Abra a cena `Assets/Scenes/Prototype_KartMovement.unity` e dê Play.
    A cena em si está praticamente vazia — todo o cenário (tela de setup,
    pista, kart, câmera, luz) é montado em runtime por `GameBootstrap.cs`.

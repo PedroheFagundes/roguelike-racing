@@ -224,7 +224,7 @@ namespace RoguelikeRacing.Track
             collider.sharedMaterial = physicMaterial;
         }
 
-        static void BuildCornerPost(Transform parent, Vector3 position, float height, float wallThickness, Material material, PhysicMaterial physicMaterial, string name)
+        static void BuildCornerPost(Transform parent, Vector3 position, float height, float wallThickness, Material material, PhysicsMaterial physicMaterial, string name)
         {
             var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             post.name = name;
