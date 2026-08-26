@@ -825,3 +825,64 @@ trecho de rampa disparar o bug de "preso na parede" da seção acima
 (sinal de que a inclinação real ficou mais íngreme que o previsto, por
 exemplo por sobreposição de dois `JumpBump` vizinhos empilhando mais do
 que a conta considerou), me avisa com a pista/posição pra eu recalcular.
+
+## Elevação quebrou tudo na rampa — muro inclinado, não o slope em si
+
+Você testou e mandou print: karts "totalmente travados" e você "pulou pra
+fora do trajeto" logo na entrada de uma rampa. Isso não era o problema que
+eu tinha antecipado (inclinação passando do limiar de 60° que confunde
+chão com parede) — reli o código de construção do muro em cima do print e
+achei a causa real, que é geométrica, não de tuning de número.
+
+**Causa:** `TrackBuilder.Build` construía cada muro/poste de canto com
+`Quaternion.LookRotation(segmentDir, Vector3.up)`, onde `segmentDir` é a
+direção 3D entre dois pontos consecutivos da centerline — em qualquer
+trecho de rampa, isso inclui uma componente vertical relevante agora que
+a elevação existe. Isso parecia inofensivo (só girar o muro pra acompanhar
+a direção do trecho), mas o *offset* de posição do muro (`rot * new
+Vector3(halfSpan, wallHeight * 0.5f, 0f)`) também usava essa rotação
+inclinada — e o eixo "up" local de uma `LookRotation` com forward inclinado
+não é mais o mundo-up: ele carrega `cos²(inclinação)` na componente
+vertical e `-sin(inclinação)*forward_horizontal` na componente horizontal.
+Fazendo a conta pra uma rampa de ~48° (o que os saltos "radicais" original-
+mente miravam): o deslocamento vertical do muro encolhia de 0.6m
+pretendido pra ~0.27m real, **e** o muro deslizava quase meio metro pro
+lado errado. Some a isso o próprio muro (uma caixa) ficando inclinado
+junto — sua altura vertical efetiva também encolhia (de 1.2m pra ~0.8m).
+Resultado: bem na entrada/saída de uma rampa, o muro fica baixo, deslocado
+e mal alinhado com a borda real da pista — exatamente o tipo de vão que um
+kart ganhando ar num salto atravessa voando, e exatamente o tipo de
+geometria estranha que pode prender um kart que colide de um jeito
+ruim contra ela.
+
+**Correção: muro e poste de canto agora ficam sempre na vertical, com
+altura vertical de verdade, independente da inclinação da pista.** Isso
+casa com a decisão já tomada de manter o chassi do kart sempre nivelado
+(nunca inclina) — se o kart nunca se inclina, faz sentido o muro também
+não se inclinar; os dois "meio flutuam" na horizontal/vertical enquanto
+sobem/descem a rampa, mas continuam se relacionando geometricamente do
+jeito certo (muro na altura certa, na borda certa, o tempo todo).
+Implementado com um helper novo, `FlattenYaw` (zera a componente Y da
+direção antes de montar a rotação, então só sobra giro em torno do eixo
+vertical — nunca cabeceio/rolagem), usado tanto pro muro quanto pro poste
+de canto; o offset de altura agora é sempre `Vector3.up * wallHeight *
+0.5f` em vez de `rotação_inclinada * Vector3.up * altura`. Também corrigi
+o comprimento da caixa do muro pra usar a distância horizontal entre os
+pontos (não mais a distância 3D, que fica mais longa que o necessário
+numa subida/descida e "estica" o muro além do trecho real).
+
+**Além disso, reduzi a inclinação de pico dos saltos "radicais" de ~48°
+pra ~36°** (mudando cada `JumpBump(altura=7, largura=10)` pra
+`JumpBump(altura=6, largura=13)` nas 3 pistas) — margem extra de
+segurança contra o limiar de 60° do wall-slide, agora que sei que o
+sistema tem mais partes interagindo do que eu tinha antecipado numa
+primeira passada. Ainda deve sentir como salto/ladeira de verdade, só
+com menos risco de esbarrar em algum caso extremo que eu não previ.
+
+**Ainda não testado visualmente** — essa é uma correção por leitura de
+código sobre um print, não uma reprodução ao vivo. Se ainda travar ou
+deixar vazar depois desse fix, me manda outro print (ou, melhor, me
+diz em que pista/trecho aconteceu) que eu investigo mais fundo — a
+essa altura vale considerar também aumentar a distância de detecção de
+chão (`KartController.groundCheckDistance`) ou adicionar mais pontos na
+centerline perto da rampa, que ainda não mexi.

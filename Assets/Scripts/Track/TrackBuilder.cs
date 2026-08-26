@@ -52,20 +52,36 @@ namespace RoguelikeRacing.Track
 
             int count = centerlinePoints.Count;
             float halfSpan = roadWidth * 0.5f + wallThickness * 0.5f;
+            Vector3 wallVerticalOffset = Vector3.up * wallHeight * 0.5f;
 
+            // Walls stay perfectly vertical (yaw-only rotation, true world-up height)
+            // even where the road climbs or dives -- matches the kart's own chassis,
+            // which never tilts either (see the frozen-rotation comment above). Using
+            // LookRotation(segmentDir, Vector3.up) with a segmentDir that has a
+            // meaningful Y component (any ramp) tilts the wall's local up axis away
+            // from world-up: at a 48-degree slope that shrank the wall's real vertical
+            // extent from 1.2m to about 0.8m *and* shifted its position sideways by
+            // nearly half a meter, opening exactly the kind of gap a jumping kart flies
+            // straight through. Flattening segmentDir to yaw-only before building the
+            // rotation keeps the wall box standing straight up and the halfSpan/height
+            // offsets purely horizontal/vertical, regardless of road slope.
             for (int i = 0; i < count; i++)
             {
                 Vector3 a = centerlinePoints[i];
                 Vector3 b = centerlinePoints[(i + 1) % count];
 
-                Vector3 segmentDir = (b - a).normalized;
-                float segmentLength = Vector3.Distance(a, b);
+                // Horizontal-only length, matching the yaw-only rotation below -- using
+                // the full 3D distance here would over-length the wall box on a slope
+                // (the 3D distance between a climbing segment's endpoints is always
+                // longer than the ground they actually span).
+                Vector3 horizontalDelta = new Vector3(b.x - a.x, 0f, b.z - a.z);
+                float segmentLength = horizontalDelta.magnitude;
                 Vector3 mid = (a + b) * 0.5f;
-                Quaternion rot = Quaternion.LookRotation(segmentDir, Vector3.up);
+                Quaternion rot = Quaternion.LookRotation(FlattenYaw(b - a), Vector3.up);
 
-                BuildWall(trackRoot, mid + rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f), rot,
+                BuildWall(trackRoot, mid + rot * Vector3.right * halfSpan + wallVerticalOffset, rot,
                     segmentLength, wallHeight, wallThickness, wallMaterial, lowFriction, $"WallOuter_{i}");
-                BuildWall(trackRoot, mid + rot * new Vector3(-halfSpan, wallHeight * 0.5f, 0f), rot,
+                BuildWall(trackRoot, mid - rot * Vector3.right * halfSpan + wallVerticalOffset, rot,
                     segmentLength, wallHeight, wallThickness, wallMaterial, lowFriction, $"WallInner_{i}");
             }
 
@@ -86,11 +102,15 @@ namespace RoguelikeRacing.Track
                 Vector3 bisector = (dirIn + dirOut).normalized;
                 if (bisector.sqrMagnitude < 0.0001f) bisector = dirOut;
 
-                Quaternion rot = Quaternion.LookRotation(bisector, Vector3.up);
+                // Same yaw-only flattening as the walls above -- the post itself is
+                // already always vertical (BuildCornerPost never rotates it), but this
+                // offset was still using the tilted bisector, which pushed posts on a
+                // slope sideways and low for the same reason the walls were.
+                Quaternion rot = Quaternion.LookRotation(FlattenYaw(bisector), Vector3.up);
 
-                BuildCornerPost(trackRoot, curr + rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f),
+                BuildCornerPost(trackRoot, curr + rot * Vector3.right * halfSpan + wallVerticalOffset,
                     wallHeight, wallThickness, wallMaterial, lowFriction, $"CornerOuter_{i}");
-                BuildCornerPost(trackRoot, curr - rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f),
+                BuildCornerPost(trackRoot, curr - rot * Vector3.right * halfSpan + wallVerticalOffset,
                     wallHeight, wallThickness, wallMaterial, lowFriction, $"CornerInner_{i}");
             }
 
@@ -129,9 +149,9 @@ namespace RoguelikeRacing.Track
 
             ApplyElevation(points,
                 new JumpBump(0.15f, 4f, 14f),
-                new JumpBump(0.42f, 7f, 10f),
+                new JumpBump(0.42f, 6f, 13f),
                 new JumpBump(0.62f, 4f, 14f),
-                new JumpBump(0.85f, 7f, 10f));
+                new JumpBump(0.85f, 6f, 13f));
 
             return points;
         }
@@ -156,9 +176,9 @@ namespace RoguelikeRacing.Track
 
             ApplyElevation(deduped,
                 new JumpBump(0.1f, 4f, 14f),
-                new JumpBump(0.35f, 7f, 10f),
+                new JumpBump(0.35f, 6f, 13f),
                 new JumpBump(0.55f, 5f, 13f),
-                new JumpBump(0.78f, 7f, 10f));
+                new JumpBump(0.78f, 6f, 13f));
 
             return deduped;
         }
@@ -183,9 +203,9 @@ namespace RoguelikeRacing.Track
 
             ApplyElevation(points,
                 new JumpBump(0.15f, 5f, 13f),
-                new JumpBump(0.35f, 7f, 10f),
+                new JumpBump(0.35f, 6f, 13f),
                 new JumpBump(0.55f, 4f, 14f),
-                new JumpBump(0.8f, 7f, 10f));
+                new JumpBump(0.8f, 6f, 13f));
 
             return points;
         }
@@ -231,7 +251,7 @@ namespace RoguelikeRacing.Track
         ///
         /// Peak slope of a single bump is PeakHeight * pi / (2 * HalfWidth) (radians); the
         /// bumps below are all chosen to land around 20-30 degrees for rolling hills and
-        /// ~48 degrees for the "radical" jumps, comfortably under the ~60 degree point
+        /// ~36 degrees for the "radical" jumps, comfortably under the ~60 degree point
         /// where KartController's wall-slide code (wallNormalMaxVerticalComponent = 0.5,
         /// i.e. a collision normal is only trusted as "ground" while normal.y = cos(slope)
         /// stays above 0.5) would start treating the ramp surface as a wall instead of
@@ -272,6 +292,18 @@ namespace RoguelikeRacing.Track
 
                 points[i] = new Vector3(points[i].x, height, points[i].z);
             }
+        }
+
+        /// <summary>Projects a direction onto the horizontal plane and re-normalizes, for
+        /// building rotations that should only ever yaw (never pitch/roll) regardless of
+        /// how steep the source direction's vertical component is. Falls back to world
+        /// forward in the degenerate case of a direction that's already purely vertical
+        /// (shouldn't happen at the slopes this project uses, but cheap to guard against).</summary>
+        static Vector3 FlattenYaw(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f) return Vector3.forward;
+            return direction.normalized;
         }
 
         static float LoopDistance(List<Vector3> points)
