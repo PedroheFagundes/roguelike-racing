@@ -70,6 +70,35 @@ chama decide se anexa `KartInput` (jogador) ou `KartAIDriver` (IA). Isso
 existe justamente pra esse passo: sem essa separação, todo kart nasceria
 com input de teclado.
 
+## Passo 3 — checkpoint/detecção de volta
+`CheckpointBuilder` distribui 8 gates (triggers, sem colisão física) em
+pontos igualmente espaçados da mesma `CenterlinePoints` usada pra desenhar
+a pista — garante que os gates ficam alinhados com a pista sem precisar
+sincronizar duas listas separadas. Cada gate carrega um `Checkpoint.Index`
+sequencial; índice 0 é a linha de largada/chegada.
+
+`LapTracker` é anexado em todo kart (jogador e IA — voltas não são
+conceito exclusivo do jogador, e IA vai precisar disso pra posição de
+corrida mais pra frente). A regra é simples e clássica de kart racer: o
+kart só pode disparar o gate N se o próximo esperado for N (senão ignora).
+Como o kart nasce em cima/perto do gate 0, mas o primeiro índice esperado
+já é 1, o cruzamento inicial da linha de largada é ignorado automaticamente
+— só quando o kart passa por 1, 2, ..., N-1 em ordem e volta a cruzar o
+gate 0 é que conta como volta completa. Isso, de graça, impede: cortar
+caminho pulando checkpoints, e dar ré pra cruzar a linha de chegada de trás
+pra frente pra "completar" voltas.
+
+Feedback visual: os gates são cubos finos e coloridos (visíveis de
+propósito, não invisíveis) pra dar pra conferir no Editor se estão bem
+posicionados; e um HUD mínimo via `OnGUI` (`RaceHud`) mostra `Lap: N` pro
+jogador. Isso é só pra dar visibilidade nesse passo — não é o sistema de UI
+que vai ser usado pra escolha de habilidade/item (isso é decisão do passo
+4/5, provavelmente Canvas de verdade).
+
+Ainda não existe: posição de corrida (1º/2º/3º), fim de corrida (N voltas
+e acabou), nem tempo de volta. Não é necessário pra "detectar volta" —
+fica pra quando isso importar de fato pro gameplay.
+
 ## Pista e kart
 - Pista: oval fechado gerado por código (`TrackBuilder.cs`), cubos para
   pista/muros, sem malha externa.

@@ -13,6 +13,7 @@ namespace RoguelikeRacing.Track
         public List<Vector3> CenterlinePoints;
         public Vector3 StartPosition;
         public Quaternion StartRotation;
+        public float RoadWidth;
     }
 
     /// <summary>
@@ -68,7 +69,8 @@ namespace RoguelikeRacing.Track
             {
                 CenterlinePoints = points,
                 StartPosition = startPos,
-                StartRotation = Quaternion.LookRotation(startDir, Vector3.up)
+                StartRotation = Quaternion.LookRotation(startDir, Vector3.up),
+                RoadWidth = roadWidth
             };
         }
 

@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using RoguelikeRacing.CameraRig;
 using RoguelikeRacing.Kart;
+using RoguelikeRacing.Race;
 using RoguelikeRacing.Track;
 using UnityEngine;
 
@@ -31,19 +33,25 @@ namespace RoguelikeRacing.Core
             BuildLighting(root.transform);
 
             TrackData track = TrackBuilder.BuildOvalTrack(root.transform);
+            List<Checkpoint> checkpoints = CheckpointBuilder.BuildCheckpoints(track, root.transform);
 
             GameObject playerKart = KartFactory.SpawnKart(track.StartPosition, track.StartRotation, root.transform, "PlayerKart", PlayerColor);
             playerKart.AddComponent<KartInput>();
 
+            var playerLapTracker = playerKart.AddComponent<LapTracker>();
+            playerLapTracker.Initialize(checkpoints.Count);
+            playerLapTracker.LapCompleted += lap => Debug.Log($"Player completed lap {lap}");
+
             // Staggered grid behind the player, offset to either side so they don't
             // spawn stacked on top of each other (and each other's Rigidbody).
-            SpawnAIKart(track, root.transform, "AIKart_1", AiColor1, indexOffsetBehindStart: 3, lateralOffset: 2.5f);
-            SpawnAIKart(track, root.transform, "AIKart_2", AiColor2, indexOffsetBehindStart: 3, lateralOffset: -2.5f);
+            SpawnAIKart(track, root.transform, "AIKart_1", AiColor1, checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f);
+            SpawnAIKart(track, root.transform, "AIKart_2", AiColor2, checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -2.5f);
 
             BuildChaseCamera(root.transform, playerKart.transform, track.StartPosition);
+            BuildRaceHud(root.transform, playerLapTracker);
         }
 
-        static void SpawnAIKart(TrackData track, Transform parent, string name, Color color, int indexOffsetBehindStart, float lateralOffset)
+        static void SpawnAIKart(TrackData track, Transform parent, string name, Color color, int checkpointCount, int indexOffsetBehindStart, float lateralOffset)
         {
             int count = track.CenterlinePoints.Count;
             int spawnIndex = ((-indexOffsetBehindStart % count) + count) % count;
@@ -58,6 +66,10 @@ namespace RoguelikeRacing.Core
 
             var driver = aiKart.AddComponent<KartAIDriver>();
             driver.Initialize(track.CenterlinePoints, startWaypointIndex: (spawnIndex + 1) % count);
+
+            var lapTracker = aiKart.AddComponent<LapTracker>();
+            lapTracker.Initialize(checkpointCount);
+            lapTracker.LapCompleted += lap => Debug.Log($"{name} completed lap {lap}");
         }
 
         static void BuildLighting(Transform root)
@@ -86,6 +98,15 @@ namespace RoguelikeRacing.Core
 
             var chaseCamera = cameraGO.AddComponent<ChaseCamera>();
             chaseCamera.target = kartTransform;
+        }
+
+        static void BuildRaceHud(Transform root, LapTracker playerLapTracker)
+        {
+            var hudGO = new GameObject("RaceHud");
+            hudGO.transform.SetParent(root, false);
+
+            var hud = hudGO.AddComponent<RaceHud>();
+            hud.target = playerLapTracker;
         }
     }
 }

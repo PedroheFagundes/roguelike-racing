@@ -5,7 +5,7 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 2 — IA simples por waypoints
+## Status atual: Passo 3 — checkpoint/detecção de volta
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
@@ -16,15 +16,21 @@ Implementado:
 - 2 oponentes de IA (`KartAIDriver`) seguindo os waypoints da pista (o
   mesmo `CenterlinePoints` usado para desenhar a pista): mira no próximo
   ponto, acelera, corta acelerador em curva fechada e ativa drift acima de
-  um ângulo — sem rubber-banding, sem desvio de obstáculo, sem noção de
-  volta ainda. Karts largam num grid escalonado atrás do jogador (índices
-  diferentes da centerline + deslocamento lateral) pra não nascer um em
-  cima do outro.
+  um ângulo — sem rubber-banding, sem desvio de obstáculo. Karts largam
+  num grid escalonado atrás do jogador (índices diferentes da centerline +
+  deslocamento lateral) pra não nascer um em cima do outro.
+- 8 gates de checkpoint (`CheckpointBuilder`) espalhados pela centerline,
+  como triggers visíveis (cubos finos coloridos, ciano; o de largada/
+  chegada em amarelo). `LapTracker`, anexado em todo kart (jogador e IA),
+  exige que os gates sejam cruzados em ordem antes de contar uma volta —
+  isso impede cortar curva ou dar ré pela linha de chegada pra pontuar.
+  Volta completa loga no console e aparece num HUD simples (`RaceHud`,
+  `OnGUI`) só pro jogador.
 
-Não implementado ainda (propositalmente, por ordem de trabalho):
-checkpoints/volta, level up, caixas de item, rubber-banding. Ver
-`docs/DESIGN_DECISIONS.md` para a proposta de como o level up/item vai ser
-feito sem travar em multiplayer futuro.
+Não implementado ainda (propositalmente, por ordem de trabalho): level up,
+caixas de item, rubber-banding, posição de corrida (1º/2º/3º), fim de
+corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md` para a proposta de como
+o level up/item vai ser feito sem travar em multiplayer futuro.
 
 ## Abrir no Unity
 
@@ -70,7 +76,8 @@ o Editor e jogar — isso não foi validado neste ambiente.
 ```
 Assets/Scripts/
   Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
-  Track/    TrackBuilder (pista procedural de primitivas)
+  Track/    TrackBuilder, Checkpoint, CheckpointBuilder (pista + gates procedurais)
+  Race/     LapTracker, RaceHud
   Camera/   ChaseCamera
   Core/     GameBootstrap (monta tudo em runtime)
 Assets/Scenes/
