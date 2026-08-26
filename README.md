@@ -5,19 +5,26 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 1 — movimento do kart
+## Status atual: Passo 2 — IA simples por waypoints
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
   drift com boost ao soltar (mini-turbo), tudo com física simples da Unity.
 - Pista oval mínima gerada por código, feita de primitivas (sem assets
   externos).
-- Câmera de 3ª pessoa seguindo o kart.
-- Sem IA, sem itens, sem level up ainda — isso é dos próximos passos.
+- Câmera de 3ª pessoa seguindo o kart do jogador.
+- 2 oponentes de IA (`KartAIDriver`) seguindo os waypoints da pista (o
+  mesmo `CenterlinePoints` usado para desenhar a pista): mira no próximo
+  ponto, acelera, corta acelerador em curva fechada e ativa drift acima de
+  um ângulo — sem rubber-banding, sem desvio de obstáculo, sem noção de
+  volta ainda. Karts largam num grid escalonado atrás do jogador (índices
+  diferentes da centerline + deslocamento lateral) pra não nascer um em
+  cima do outro.
 
-Não implementado ainda (propositalmente, por ordem de trabalho): IA,
-checkpoints/volta, level up, caixas de item. Ver `docs/DESIGN_DECISIONS.md`
-para a proposta de como isso vai ser feito sem travar em multiplayer futuro.
+Não implementado ainda (propositalmente, por ordem de trabalho):
+checkpoints/volta, level up, caixas de item, rubber-banding. Ver
+`docs/DESIGN_DECISIONS.md` para a proposta de como o level up/item vai ser
+feito sem travar em multiplayer futuro.
 
 ## Abrir no Unity
 
@@ -62,7 +69,7 @@ o Editor e jogar — isso não foi validado neste ambiente.
 
 ```
 Assets/Scripts/
-  Kart/     KartController, KartInput, KartPhysicsMath, KartFactory
+  Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
   Track/    TrackBuilder (pista procedural de primitivas)
   Camera/   ChaseCamera
   Core/     GameBootstrap (monta tudo em runtime)

@@ -52,6 +52,24 @@ Ou seja: construir a decisão como request/response de dados desde o passo
 Não precisa decidir agora se o multiplayer futuro será client-server
 autoritativo ou peer-to-peer — esse desenho de evento funciona pros dois.
 
+## Passo 2 — IA por waypoints
+`KartAIDriver` reusa `TrackData.CenterlinePoints` (os mesmos pontos usados
+pra desenhar a pista no passo 1) como lista de waypoints — não existe uma
+lista de waypoints separada pra IA, evita as duas ficarem dessincronizadas
+se a pista mudar de forma no futuro. A IA calcula o ângulo até o próximo
+ponto, e usa esse ângulo pra três coisas: quanto virar, quanto cortar
+acelerador em curva fechada, e se deve dar drift. Sem rubber-banding
+(ajuste de velocidade da IA baseado na posição do jogador) por enquanto —
+isso é um ajuste de "sensação de disputa" que só faz sentido calibrar
+depois que voltas/posição de corrida existirem (passo 3), e é mais fácil
+adicionar depois em cima do `KartAIDriver` do que prever agora.
+
+`KartFactory.SpawnKart` não decide mais sozinho se o kart é do jogador —
+ele só monta o kart (corpo, collider, rigidbody, `KartController`) e quem
+chama decide se anexa `KartInput` (jogador) ou `KartAIDriver` (IA). Isso
+existe justamente pra esse passo: sem essa separação, todo kart nasceria
+com input de teclado.
+
 ## Pista e kart
 - Pista: oval fechado gerado por código (`TrackBuilder.cs`), cubos para
   pista/muros, sem malha externa.
