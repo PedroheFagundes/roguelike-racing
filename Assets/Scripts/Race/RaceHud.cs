@@ -41,6 +41,8 @@ namespace RoguelikeRacing.Race
         void OnGUI()
         {
             if (target == null) return;
+
+            OnGuiScale.Begin();
             EnsureStyles();
 
             string positionText = standings != null ? $"   Posicao: {standings.GetPosition(target)}/{standings.TotalKarts}" : "";
@@ -52,7 +54,7 @@ namespace RoguelikeRacing.Race
 
             if (wrongWayDetector != null && wrongWayDetector.IsWrongWay)
             {
-                var rect = new Rect(Screen.width * 0.5f - 220f, 90f, 440f, 60f);
+                var rect = new Rect(OnGuiScale.Width * 0.5f - 220f, 90f, 440f, 60f);
                 GUI.Label(rect, "CONTRAMAO!", _wrongWayStyle);
             }
         }

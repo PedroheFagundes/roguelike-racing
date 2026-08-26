@@ -126,11 +126,12 @@ namespace RoguelikeRacing.Core
 
         void OnGUI()
         {
+            OnGuiScale.Begin();
             EnsureStyles();
 
             const float panelWidth = 540f;
             const float panelHeight = 400f;
-            var panelRect = new Rect((Screen.width - panelWidth) * 0.5f, (Screen.height - panelHeight) * 0.5f, panelWidth, panelHeight);
+            var panelRect = new Rect((OnGuiScale.Width - panelWidth) * 0.5f, (OnGuiScale.Height - panelHeight) * 0.5f, panelWidth, panelHeight);
 
             GUI.Box(panelRect, GUIContent.none);
             GUI.Label(new Rect(panelRect.x, panelRect.y + 10f, panelRect.width, 40f), "Roguelike Racing", _titleStyle);

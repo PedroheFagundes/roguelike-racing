@@ -391,3 +391,33 @@ Isso também derruba a suposição registrada no passo 1 de que "Unity
 regenera `ProjectSettings`/`.meta` ausentes com defaults na primeira
 abertura" — isso continua verdade, mas eu não tinha como prever qual
 versão real do Editor você tinha instalada, e agora sabemos: Unity 6.
+
+## Menus pequenos demais — escala do OnGUI
+
+Causa: `OnGUI` (o sistema de UI legado que uso em todo lugar — painel de
+pausa, tela de setup, HUD) desenha em pixels fixos de tela. Eu dimensionei
+tudo pensando numa janela pequena (tinha o Steam Deck, 1280x800, como
+referência mental desde a seção de input) — numa tela/monitor maior isso
+fica desproporcionalmente pequeno, porque "460 pixels de largura de
+painel" é uma fração enorme de uma tela de 1280px mas é pequena numa tela
+de 2560 ou 3840px. Não sei qual é a resolução real que você está usando,
+então não dava pra só aumentar os números fixos — teria efeito errado em
+resoluções diferentes da que eu chutasse.
+
+Corrigido com `OnGuiScale` (`Assets/Scripts/Race/OnGuiScale.cs`): calcula
+um fator de escala a partir da altura real da tela dividida por uma altura
+de referência (600px), e aplica isso como uma transformação de matriz
+(`GUIUtility.ScaleAroundPivot`) logo no início de cada `OnGUI` — isso
+escala botão, texto, tudo, de uma vez só, sem precisar multiplicar cada
+tamanho de fonte/painel manualmente em 3 arquivos diferentes. O fator
+nunca fica abaixo de 1 (`Mathf.Max(1f, ...)`), então em telas pequenas ou
+iguais à referência o tamanho não muda; em telas maiores, cresce
+proporcionalmente (ex.: monitor 1080p vira ~1.8x maior, 1440p ~2.4x,
+4K ~3.6x). Apliquei nos 3 lugares que usam `OnGUI`: `PauseChoiceUI`
+(level up/item), `RaceSetupUI` (tela inicial) e `RaceHud`.
+
+Não tenho como confirmar visualmente que o tamanho ficou "certo" agora —
+só que ficou proporcionalmente maior em telas grandes, que era o problema
+relatado. Se ainda estiver pequeno ou ficar grande demais, me diga a
+resolução da sua tela/janela que eu ajusto a altura de referência (o
+`600` em `OnGuiScale.cs`) diretamente, em vez de tentar adivinhar de novo.

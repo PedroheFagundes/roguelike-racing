@@ -85,6 +85,11 @@ Implementado:
   espessura padrão do muro. Ver `docs/DESIGN_DECISIONS.md` pro diagnóstico
   completo — não consegui reproduzir/ver o bug aqui, então vale confirmar
   que sumiu depois de testar.
+- Menus (`PauseChoiceUI`, `RaceSetupUI`, `RaceHud`) escalam com o tamanho
+  real da tela agora (`OnGuiScale`), em vez de pixel fixo — ficavam
+  desproporcionalmente pequenos em monitor grande. Nunca encolhe abaixo do
+  tamanho original, só cresce em tela maior que a referência (600px de
+  altura).
 
 Não implementado ainda (propositalmente, por ordem de trabalho):
 rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`
@@ -205,7 +210,7 @@ Assets/Scripts/
   Track/    TrackBuilder, TrackCatalog, Checkpoint, CheckpointBuilder
             (pista procedural + 3 tracados + gates)
   Race/     LapTracker, RaceHud, RaceStandings, WrongWayDetector,
-            LevelUpController, PauseChoiceUI, ChoicePrompt,
+            LevelUpController, PauseChoiceUI, ChoicePrompt, OnGuiScale,
             KartUpgrade, KartUpgradeCatalog,
             ItemBox, ItemBoxBuilder, ItemDefinition, ItemCatalog,
             ItemHazards, OilSlickHazard, KartInventory,

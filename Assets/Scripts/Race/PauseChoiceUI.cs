@@ -92,6 +92,8 @@ namespace RoguelikeRacing.Race
         {
             if (_options == null) return;
 
+            OnGuiScale.Begin();
+
             const float panelWidth = 460f;
             const float buttonHeight = 70f;
             const float buttonSpacing = 12f;
@@ -99,8 +101,8 @@ namespace RoguelikeRacing.Race
             float panelHeight = 90f + _options.Count * (buttonHeight + buttonSpacing) + footerHeight;
 
             var panelRect = new Rect(
-                (Screen.width - panelWidth) * 0.5f,
-                (Screen.height - panelHeight) * 0.5f,
+                (OnGuiScale.Width - panelWidth) * 0.5f,
+                (OnGuiScale.Height - panelHeight) * 0.5f,
                 panelWidth, panelHeight);
 
             GUI.Box(panelRect, GUIContent.none);
