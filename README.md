@@ -105,6 +105,26 @@ Implementado:
   chegada) redesenhados como arco (dois pilares + viga, meio aberto) em
   vez de bloco sólido cruzando a pista — não eram bug, mas tinham cara de
   parede/obstáculo. A detecção de volta não mudou, só a aparência.
+- **Pista nas curvas corrigida** (bug real visto em print, não físico):
+  a pista era feita de caixas independentes, uma por trecho, cada uma
+  orientada só pra própria direção — numa curva fechada isso deixava vão
+  e sobreposição entre trechos vizinhos, visível e físico (o kart caía e
+  subia no collider a cada vão). `TrackBuilder` agora gera a pista como
+  uma malha única e contínua (fita ao longo da centerline, vértice
+  compartilhado entre trechos), sem costura possível em nenhum ângulo de
+  curva. Bem provavelmente a causa real de "péssimo pra dirigir" nas
+  curvas, não só direção precisando de ajuste.
+- Pesquisei (não só supus) se deveríamos abandonar Rigidbody por uma
+  simulação "falsa"/cinemática, pensando nas ladeiras/rampas que ainda
+  vamos fazer — ver `docs/DESIGN_DECISIONS.md` pra fontes e detalhe.
+  Resposta: não, kart racer usa Rigidbody sim (inclusive tutorial oficial
+  da Unity), só que com forças simplificadas/arcade em vez de física
+  realista de carro. Pra rampa, a técnica padrão (suspensão por raycast +
+  alinhar o chassi à normal do chão) também é em cima de Rigidbody — só
+  que hoje a rotação em X/Z do kart está travada
+  (`RigidbodyConstraints.FreezeRotationX/Z`), o que vai precisar mudar
+  quando ladeira entrar de verdade no escopo. Não implementado ainda,
+  só registrado pra não esquecer.
 
 Não implementado ainda (propositalmente, por ordem de trabalho):
 rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`

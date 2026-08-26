@@ -41,6 +41,7 @@ namespace RoguelikeRacing.Track
             PhysicsMaterial lowFriction = CreateLowFrictionMaterial();
 
             BuildGroundPlane(trackRoot, centerlinePoints, groundMaterial);
+            BuildRoadMesh(trackRoot, centerlinePoints, roadWidth, roadMaterial);
 
             int count = centerlinePoints.Count;
             float halfSpan = roadWidth * 0.5f + wallThickness * 0.5f;
@@ -54,8 +55,6 @@ namespace RoguelikeRacing.Track
                 float segmentLength = Vector3.Distance(a, b);
                 Vector3 mid = (a + b) * 0.5f;
                 Quaternion rot = Quaternion.LookRotation(segmentDir, Vector3.up);
-
-                BuildRoadSegment(trackRoot, mid, rot, segmentLength, roadWidth, roadMaterial, i);
 
                 BuildWall(trackRoot, mid + rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f), rot,
                     segmentLength, wallHeight, wallThickness, wallMaterial, lowFriction, $"WallOuter_{i}");
@@ -201,14 +200,80 @@ namespace RoguelikeRacing.Track
             ground.GetComponent<Renderer>().sharedMaterial = material;
         }
 
-        static void BuildRoadSegment(Transform parent, Vector3 position, Quaternion rotation, float length, float width, Material material, int index)
+        // Ground plane's top face sits at Y=0 (see BuildGroundPlane); lifting the road
+        // mesh slightly above it avoids the two coplanar surfaces z-fighting/flickering.
+        const float RoadSurfaceHeight = 0.08f;
+
+        /// <summary>
+        /// Builds the driving surface as a single continuous ribbon mesh along the
+        /// centerline, instead of one independent flat box per segment. Independent
+        /// boxes each face their own segment's direction, so on a sharp corner their
+        /// edges don't line up -- visible gaps/overlaps in the surface, and real gaps in
+        /// the collider a kart can catch on while cornering (this is what made corners
+        /// "pessimo de dirigir" even after the wall-slide fix). A shared-vertex mesh
+        /// strip has no seams by construction, at any corner sharpness -- the standard
+        /// technique for spline-following race track geometry.
+        /// </summary>
+        static void BuildRoadMesh(Transform parent, List<Vector3> centerlinePoints, float roadWidth, Material material)
         {
-            var road = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            road.name = $"Road_{index}";
-            road.transform.SetParent(parent, false);
-            road.transform.SetPositionAndRotation(position, rotation);
-            road.transform.localScale = new Vector3(width, 0.2f, length + 0.1f);
-            road.GetComponent<Renderer>().sharedMaterial = material;
+            int count = centerlinePoints.Count;
+            float halfWidth = roadWidth * 0.5f;
+            Vector3 heightOffset = Vector3.up * RoadSurfaceHeight;
+
+            var vertices = new Vector3[count * 2];
+            var uvs = new Vector2[count * 2];
+
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 prev = centerlinePoints[(i - 1 + count) % count];
+                Vector3 curr = centerlinePoints[i] + heightOffset;
+                Vector3 next = centerlinePoints[(i + 1) % count];
+
+                Vector3 dirIn = (centerlinePoints[i] - prev).normalized;
+                Vector3 dirOut = (next - centerlinePoints[i]).normalized;
+                Vector3 forward = (dirIn + dirOut).normalized;
+                if (forward.sqrMagnitude < 0.0001f) forward = dirOut;
+
+                Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
+
+                vertices[i * 2] = curr - right * halfWidth;
+                vertices[i * 2 + 1] = curr + right * halfWidth;
+
+                uvs[i * 2] = new Vector2(0f, i);
+                uvs[i * 2 + 1] = new Vector2(1f, i);
+            }
+
+            var triangles = new int[count * 6];
+            for (int i = 0; i < count; i++)
+            {
+                int next = (i + 1) % count;
+                int bl = i * 2;
+                int br = i * 2 + 1;
+                int tl = next * 2;
+                int tr = next * 2 + 1;
+
+                int t = i * 6;
+                triangles[t] = bl;
+                triangles[t + 1] = tl;
+                triangles[t + 2] = br;
+                triangles[t + 3] = br;
+                triangles[t + 4] = tl;
+                triangles[t + 5] = tr;
+            }
+
+            var mesh = new Mesh { name = "RoadMesh" };
+            mesh.vertices = vertices;
+            mesh.uv = uvs;
+            mesh.triangles = triangles;
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            var roadGO = new GameObject("Road");
+            roadGO.transform.SetParent(parent, false);
+
+            roadGO.AddComponent<MeshFilter>().sharedMesh = mesh;
+            roadGO.AddComponent<MeshRenderer>().sharedMaterial = material;
+            roadGO.AddComponent<MeshCollider>().sharedMesh = mesh;
         }
 
         static void BuildWall(Transform parent, Vector3 position, Quaternion rotation, float length, float height, float thickness, Material material, PhysicsMaterial physicMaterial, string name)

@@ -561,3 +561,92 @@ cobrindo a abertura inteira — a lógica de volta não muda em nada, só a
 aparência. Um arco lê como "passagem" de forma muito mais óbvia que um
 bloco sólido, é como praticamente todo jogo de corrida sinaliza checkpoint
 (incluindo a linha de largada/chegada).
+
+## Pista "encavalada" nas curvas — bug de geometria, não de física
+
+Você mandou print certo: nas curvas dava pra ver a pista como um monte de
+retângulos pequenos, com espaço no chão entre alguns e sobrepondo outros.
+Isso é diferente do bug de parede que corrigi antes (aquele era sobre
+*física*/colisão; esse aqui é sobre a *malha visual e o collider da
+pista em si*).
+
+**Causa:** desde o passo 1, cada trecho da pista entre dois pontos da
+centerline era uma caixa (`Cube`) independente, orientada na direção
+daquele trecho específico (`BuildRoadSegment`). Numa reta ou curva bem
+suave, caixas vizinhas ficam quase alinhadas e o problema não aparece. Mas
+numa curva fechada (Estádio, Técnica — que só existem desde o passo 6),
+cada caixa aponta pra uma direção bem diferente da vizinha; como cada uma
+só sabe da própria direção, as bordas não se encontram direito: sobra vão
+do lado de fora da curva, sobra sobreposição do lado de dentro. Pesquisei
+antes de mexer: isso é um problema conhecido e documentado de gerar pista
+por segmentos independentes em vez de uma malha contínua ao longo da
+curva — a prática padrão pra pista de corrida procedural é gerar uma
+"fita" (mesh strip) seguindo a spline/polilinha, não posicionar peça por
+peça. E não era só cosmético: o **collider** também tinha esses mesmos
+vãos, então o kart literalmente caía um pouquinho (pra cima do chão verde
+mais baixo) e subia de novo a cada vão, toda curva — isso pode muito bem
+ter sido a causa real de "péssimo de dirigir nas curvas", não só a
+direção precisar de ajuste.
+
+**Correção:** reescrevi `TrackBuilder.BuildRoadMesh` (antes
+`BuildRoadSegment`, chamado em loop) pra gerar uma única malha (`Mesh`)
+contínua em forma de fita ao longo de toda a centerline — dois vértices
+por ponto (borda esquerda/direita, usando a mesma bissetriz já usada pros
+postes de canto das paredes, pra alinhar a borda certo mesmo em curva
+fechada), triangulados em sequência, um único `MeshCollider`. Vértice
+compartilhado entre trechos vizinhos = sem costura possível, em qualquer
+ângulo de curva, por construção — não é mais "quase alinhado", é
+literalmente a mesma geometria conectada. Também subi a pista 0.08 acima
+do chão (antes ficava exatamente na mesma altura do topo do chão-plano,
+o que causa cintilação de superfícies coincidentes/*z-fighting*).
+
+## Rigidbody vs física "simulada" — pesquisa, pra responder direito
+
+Você perguntou se jogos assim usam Rigidbody de verdade ou só simulam, e
+pediu pra eu confirmar antes de decidir, pensando em ladeira/rampa que
+ainda vamos fazer. Pesquisei (3 buscas) em vez de responder de memória:
+
+**Resposta curta: sim, usam Rigidbody — mas com forças simplificadas e
+"arcade", não física de carro realista.** Não é "física real vs física
+falsa" como uma escolha binária; é "usar o motor de física da engine
+(colisão, gravidade, resolução de contato de graça) só que com
+comportamento bem mais simples/ajustável do que um carro de verdade
+teria". A própria Unity tem um tutorial oficial chamado "Building an
+Arcade Racer — Part 2: Physics" cobrindo exatamente isso: Rigidbody +
+valores simplificados/ajustáveis, não um simulador de física veicular de
+verdade. Isso confirma que a escolha do passo 1 (Rigidbody com velocidade
+autorada por código) está no caminho certo — não é motivo pra reescrever
+do zero.
+
+**Pra ladeira/rampa especificamente**, a técnica padrão do gênero
+("raycar"/suspensão por raycast) também é em cima de Rigidbody, não uma
+alternativa a ele: dispara um raycast pra baixo (um no centro, ou um por
+canto do chassi em versões mais robustas), mede a distância até o chão,
+aplica força de "suspensão" proporcional à compressão, e (o pedaço que
+importa pra rampa) alinha a rotação do chassi à normal do chão detectado
+— é isso que faz o kart inclinar seguindo a ladeira em vez de ficar
+sempre nivelado.
+
+**Achado concreto, ainda sem implementar:** o `KartController` hoje trava
+a rotação em X e Z (`RigidbodyConstraints.FreezeRotationX | FreezeRotationZ`)
+— proposital lá no passo 1, pra impedir o kart de capotar, mas isso
+também impede fisicamente qualquer inclinação, inclusive a de uma rampa
+de verdade. Quando ladeira/rampa entrar de fato no escopo, essa trava
+precisa sair (ou ser trocada por um alinhamento ativo à normal do chão,
+via raycast, como a pesquisa descreve) — registrando aqui pra não
+esquecer, mas não implementei rampa nem mexi nessa trava agora, já que
+não foi pedido ainda ("ainda vamos implementar" — quando chegar a hora).
+
+**Conclusão prática:** não é preciso trocar de arquitetura. O que
+realmente estava quebrado (pista com vão nas curvas) é o que corrigi
+acima; direção e wall-slide de sessões anteriores continuam válidos; e
+pra rampa, quando chegar a vez, o caminho é raycast de suspensão +
+liberar a rotação em X/Z, não abandonar Rigidbody.
+
+Sources:
+- [Fabricating mesh for procedural path/spline - Unity Discussions](https://forum.unity.com/threads/fabricating-mesh-for-procedural-path-spline.694147/)
+- [Finding Junctions in Spline-based Road Generation (thesis, DiVA portal)](https://www.diva-portal.org/smash/get/diva2:1675311/FULLTEXT02)
+- [3D Kinematic Car: Slopes & Ramps - Godot Recipes](https://kidscancode.org/godot_recipes/3.x/3d/kinematic_car/car_slopes/index.html)
+- [Arcade Style Bouncy Vehicle Physics Tutorial - Doofah Software](https://www.doofah.com/tutorials/unity/bouncy-vehicle-tutorial/)
+- [Arcade Racer: Physics with Rigidbody vs Kinetic? - Unity Discussions](https://discussions.unity.com/t/arcade-racer-physics-with-rigidbody-vs-kinetic/692450)
+- [Building an Arcade Racer. Part 2: Physics - Unity](https://unity.com/resources/building-arcade-racer-physics)
