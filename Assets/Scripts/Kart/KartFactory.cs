@@ -26,8 +26,8 @@ namespace RoguelikeRacing.Kart
 
             var rb = kart.AddComponent<Rigidbody>();
             rb.mass = 180f;
-            rb.drag = 0.5f;
-            rb.angularDrag = 4f;
+            rb.linearDamping = 0.5f;
+            rb.angularDamping = 4f;
             rb.centerOfMass = new Vector3(0f, -0.3f, 0f);
 
             kart.AddComponent<KartController>();

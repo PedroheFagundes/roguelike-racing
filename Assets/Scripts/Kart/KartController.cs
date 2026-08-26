@@ -229,9 +229,9 @@ namespace RoguelikeRacing.Kart
             }
 
             Vector3 targetVelocity = forwardVelocity + lateralVelocity;
-            targetVelocity.y = _rb.velocity.y;
+            targetVelocity.y = _rb.linearVelocity.y;
 
-            _rb.velocity = targetVelocity;
+            _rb.linearVelocity = targetVelocity;
         }
     }
 }

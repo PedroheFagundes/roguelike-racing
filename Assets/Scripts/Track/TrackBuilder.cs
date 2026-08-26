@@ -38,7 +38,7 @@ namespace RoguelikeRacing.Track
             Material roadMaterial = CreateColorMaterial(new Color(0.25f, 0.25f, 0.28f));
             Material wallMaterial = CreateColorMaterial(new Color(0.75f, 0.15f, 0.15f));
             Material groundMaterial = CreateColorMaterial(new Color(0.10f, 0.45f, 0.15f));
-            PhysicMaterial lowFriction = CreateLowFrictionMaterial();
+            PhysicsMaterial lowFriction = CreateLowFrictionMaterial();
 
             BuildGroundPlane(trackRoot, centerlinePoints, groundMaterial);
 
@@ -184,7 +184,7 @@ namespace RoguelikeRacing.Track
             road.GetComponent<Renderer>().sharedMaterial = material;
         }
 
-        static void BuildWall(Transform parent, Vector3 position, Quaternion rotation, float length, float height, float thickness, Material material, PhysicMaterial physicMaterial, string name)
+        static void BuildWall(Transform parent, Vector3 position, Quaternion rotation, float length, float height, float thickness, Material material, PhysicsMaterial physicMaterial, string name)
         {
             var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wall.name = name;
@@ -204,14 +204,14 @@ namespace RoguelikeRacing.Track
             return material;
         }
 
-        static PhysicMaterial CreateLowFrictionMaterial()
+        static PhysicsMaterial CreateLowFrictionMaterial()
         {
-            var material = new PhysicMaterial("TrackWall_LowFriction");
+            var material = new PhysicsMaterial("TrackWall_LowFriction");
             material.dynamicFriction = 0.05f;
             material.staticFriction = 0.05f;
             material.bounciness = 0.05f;
-            material.frictionCombine = PhysicMaterialCombine.Minimum;
-            material.bounceCombine = PhysicMaterialCombine.Minimum;
+            material.frictionCombine = PhysicsMaterialCombine.Minimum;
+            material.bounceCombine = PhysicsMaterialCombine.Minimum;
             return material;
         }
     }
