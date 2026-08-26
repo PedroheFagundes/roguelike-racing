@@ -46,6 +46,8 @@ namespace RoguelikeRacing.Core
             var levelUpController = playerKart.AddComponent<LevelUpController>();
             levelUpController.Initialize(pauseChoiceUI);
 
+            ItemBoxBuilder.BuildItemBoxes(track, root.transform, pauseChoiceUI, playerKart);
+
             // Staggered grid behind the player, offset to either side so they don't
             // spawn stacked on top of each other (and each other's Rigidbody).
             SpawnAIKart(track, root.transform, "AIKart_1", AiColor1, checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f);

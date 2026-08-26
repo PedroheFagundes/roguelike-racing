@@ -48,9 +48,18 @@ namespace RoguelikeRacing.Kart
         float _boostTimeRemaining;
         bool _grounded;
 
+        // Item effects (step 5): separate from the drift mini-turbo boost above so a
+        // Nitro item and a mini-turbo can stack instead of overwriting each other.
+        float _itemBoostSpeed;
+        float _itemBoostTimeRemaining;
+        float _shieldTimeRemaining;
+        float _slowMultiplier = 1f;
+        float _slowTimeRemaining;
+
         public float CurrentSpeedKmh => _forwardSpeed * 3.6f;
         public bool IsDrifting => _driftHeld;
         public bool IsGrounded => _grounded;
+        public bool IsShielded => _shieldTimeRemaining > 0f;
 
         void Awake()
         {
@@ -72,12 +81,35 @@ namespace RoguelikeRacing.Kart
             _driftHeld = drift && Mathf.Abs(_steerInput) > 0.1f;
         }
 
+        /// <summary>Nitro-style item: temporary top-speed bonus, stacks with the drift boost.</summary>
+        public void ApplyItemBoost(float extraSpeed, float duration)
+        {
+            _itemBoostSpeed = extraSpeed;
+            _itemBoostTimeRemaining = duration;
+        }
+
+        /// <summary>Blocks ApplySlow for the given duration (refreshes, doesn't stack).</summary>
+        public void ApplyShield(float duration)
+        {
+            _shieldTimeRemaining = Mathf.Max(_shieldTimeRemaining, duration);
+        }
+
+        /// <summary>Offensive item effect (oil slick, shockwave, ...). No-ops while shielded.</summary>
+        public void ApplySlow(float multiplier, float duration)
+        {
+            if (IsShielded) return;
+
+            _slowMultiplier = Mathf.Clamp01(multiplier);
+            _slowTimeRemaining = duration;
+        }
+
         void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
 
             CheckGround();
             UpdateDrift(dt);
+            UpdateItemEffects(dt);
             UpdateSpeed(dt);
             UpdateSteering(dt);
             ApplyVelocity();
@@ -122,9 +154,41 @@ namespace RoguelikeRacing.Kart
             }
         }
 
+        void UpdateItemEffects(float dt)
+        {
+            if (_itemBoostTimeRemaining > 0f)
+            {
+                _itemBoostTimeRemaining -= dt;
+                if (_itemBoostTimeRemaining <= 0f)
+                {
+                    _itemBoostTimeRemaining = 0f;
+                    _itemBoostSpeed = 0f;
+                }
+            }
+
+            if (_shieldTimeRemaining > 0f)
+            {
+                _shieldTimeRemaining -= dt;
+                if (_shieldTimeRemaining < 0f) _shieldTimeRemaining = 0f;
+            }
+
+            if (_slowTimeRemaining > 0f)
+            {
+                _slowTimeRemaining -= dt;
+                if (_slowTimeRemaining <= 0f)
+                {
+                    _slowTimeRemaining = 0f;
+                    _slowMultiplier = 1f;
+                }
+            }
+        }
+
         void UpdateSpeed(float dt)
         {
-            float effectiveMax = maxForwardSpeed + (_boostTimeRemaining > 0f ? _boostSpeed : 0f);
+            float driftBoost = _boostTimeRemaining > 0f ? _boostSpeed : 0f;
+            float itemBoost = _itemBoostTimeRemaining > 0f ? _itemBoostSpeed : 0f;
+            float effectiveMax = (maxForwardSpeed + driftBoost + itemBoost) * _slowMultiplier;
+
             _forwardSpeed = KartPhysicsMath.IntegrateSpeed(
                 _forwardSpeed, _throttleInput, effectiveMax, maxReverseSpeed,
                 acceleration, brakeDeceleration, engineBrakeDeceleration, dt);

@@ -124,6 +124,48 @@ a IA fica parada, o que underminaria testar se a camada roguelike é
 divertida (ela deixaria de ser um desafio rapidamente). Se não for o
 comportamento desejado, é uma linha pra remover em `GameBootstrap`.
 
+## Passo 5 — caixa de item
+Reusa a mesma arquitetura do passo 4 quase sem mudança: `ItemDefinition`
+tem o mesmo formato de `KartUpgrade` (nome, descrição, `Action<KartController>`),
+`ItemBox` monta uma lista de `ChoicePrompt` a partir de `ItemCatalog.All` e
+abre no mesmo `PauseChoiceUI`. Isso confirma a aposta feita nos passos
+anteriores: a UI de pausa+escolha não precisou mudar uma linha pra servir
+os itens, só quem constrói as opções mudou.
+
+**Decisão: item é aplicado na hora que é escolhido, não fica guardado num
+slot pra usar depois com um botão.** O pedido original ("pausa, escolhe 1
+de 4 itens") não deixava claro se o item vira um "held item" estilo Mario
+Kart (aperta um botão depois pra ativar) ou se o efeito já é a própria
+escolha. Optei pelo segundo porque: (1) reaproveita 100% o pipeline de
+`ChoicePrompt`/`PauseChoiceUI` já construído pro level up, sem precisar de
+inventário, slot de UI, nem botão de "usar item"; (2) pra escudo e nitro
+faz sentido ativar na hora mesmo; pra mancha de óleo e pulso de choque,
+"escolher" já é o momento tático (você decide se quer isso agora, vendo
+quem está por perto). Se no futuro fizer sentido guardar item pra usar no
+momento certo (ex.: guardar escudo pra quando alguém for te atacar), isso
+vira um `HeldItem` + um input de "usar" — dá pra adicionar em cima do que
+já existe (`ItemDefinition.Use` continua sendo o efeito; só muda quando
+ele é chamado), não precisa reescrever.
+
+Os 4 itens cobrem tipos diferentes de efeito de propósito: Nitro (buff
+instantâneo em si mesmo), Escudo (buff temporizado em si mesmo, bloqueia
+`ApplySlow`), Mancha de óleo (obstáculo largado no mundo, afeta quem
+passar por cima depois — inclusive você mesmo se der ré), Pulso de choque
+(ofensivo instantâneo em área, via `Physics.OverlapSphere` nos karts
+próximos). Os efeitos temporários (boost, escudo, lentidão) viraram estado
+novo no `KartController` (`ApplyItemBoost`, `ApplyShield`, `ApplySlow`),
+separado do boost do mini-turbo do passo 1 pra poderem empilhar em vez de
+se sobrescrever.
+
+IA que toca a caixa não vê o painel — ganha um item aleatório do catálogo
+aplicado na hora, mesmo raciocínio do level up automático da IA (passo 4):
+sem isso a IA nunca teria Nitro/Escudo/etc. e ficaria em desvantagem cada
+vez maior conforme o jogador acumula itens ao longo da corrida.
+
+Caixa de item reaparece depois de um cooldown (`ItemBox`, coroutine) em
+vez de sumir depois de coletada — numa corrida de várias voltas, caixa que
+não volta significa a pista ficar sem item já na segunda volta.
+
 ## Pista e kart
 - Pista: oval fechado gerado por código (`TrackBuilder.cs`), cubos para
   pista/muros, sem malha externa.

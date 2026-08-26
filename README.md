@@ -5,7 +5,7 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 4 — level up por volta
+## Status atual: Passo 5 — caixa de item
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
@@ -37,11 +37,22 @@ Implementado:
   na hora, sem pausa, só pra não ficar pra trás do jogador enquanto ele
   sobe de nível.
 
-Não implementado ainda (propositalmente, por ordem de trabalho): caixas de
-item, rubber-banding, posição de corrida (1º/2º/3º), fim de corrida (N
-voltas). Ver `docs/DESIGN_DECISIONS.md` para a arquitetura de decisão
-compartilhada entre level up e item, pensada pra não travar quando
-multiplayer entrar.
+- Caixas de item (`ItemBox`, `ItemBoxBuilder`): 5 caixas giratórias
+  espalhadas pela pista, alternando lado esquerdo/direito da linha de
+  corrida. Ao tocar, o jogador pausa e escolhe 1 dos 4 itens
+  (`ItemCatalog`, mesmo painel `PauseChoiceUI` do level up): Nitro
+  (velocidade temporária), Escudo (bloqueia o próximo efeito ofensivo),
+  Mancha de óleo (larga um obstáculo atrás que desacelera quem passar por
+  cima) e Pulso de choque (desacelera na hora todo mundo perto). Efeito é
+  aplicado assim que escolhido — não existe item guardado pra usar depois
+  (ver `docs/DESIGN_DECISIONS.md`). IA que toca a caixa ganha um item
+  aleatório do mesmo catálogo, sem pausa. Caixa reaparece depois de um
+  cooldown em vez de sumir de vez.
+
+Não implementado ainda (propositalmente, por ordem de trabalho):
+rubber-banding, posição de corrida (1º/2º/3º), fim de corrida (N voltas).
+Ver `docs/DESIGN_DECISIONS.md` para a arquitetura de decisão compartilhada
+entre level up e item, pensada pra não travar quando multiplayer entrar.
 
 ## Abrir no Unity
 
@@ -91,7 +102,9 @@ Assets/Scripts/
   Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
   Track/    TrackBuilder, Checkpoint, CheckpointBuilder (pista + gates procedurais)
   Race/     LapTracker, RaceHud, LevelUpController, PauseChoiceUI,
-            ChoicePrompt, KartUpgrade, KartUpgradeCatalog
+            ChoicePrompt, KartUpgrade, KartUpgradeCatalog,
+            ItemBox, ItemBoxBuilder, ItemDefinition, ItemCatalog,
+            ItemHazards, OilSlickHazard
   Camera/   ChaseCamera
   Core/     GameBootstrap (monta tudo em runtime)
 Assets/Scenes/
