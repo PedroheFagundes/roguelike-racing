@@ -3,10 +3,11 @@ using System.Collections.Generic;
 namespace RoguelikeRacing.Race
 {
     /// <summary>
-    /// The full pool of level-up upgrades. Kept intentionally small (4) for the
-    /// prototype, one per KartController stat group. Each is applied multiplicatively,
-    /// so picking the same upgrade again on a later lap keeps compounding rather than
-    /// re-applying a fixed flat bonus.
+    /// The full pool of level-up upgrades: 7 entries, one per distinct KartController
+    /// knob, offered 3 at a time (see LevelUpController). Each is applied
+    /// multiplicatively (or additively for slowResistance, which is clamped at use time
+    /// in KartController.ApplySlow), so picking the same upgrade again on a later lap
+    /// keeps compounding rather than re-applying a fixed flat bonus.
     /// </summary>
     public static class KartUpgradeCatalog
     {
@@ -14,6 +15,9 @@ namespace RoguelikeRacing.Race
         const float AccelerationMultiplier = 1.15f;
         const float HandlingMultiplier = 1.12f;
         const float TurboMultiplier = 1.25f;
+        const float SlowResistanceBonus = 0.2f;
+        const float TractionMultiplier = 0.85f;
+        const float DriftBoostThresholdMultiplier = 0.8f;
 
         public static readonly List<KartUpgrade> All = new List<KartUpgrade>
         {
@@ -40,6 +44,21 @@ namespace RoguelikeRacing.Race
                     kart.driftBoostSpeedBonus *= TurboMultiplier;
                     kart.maxDriftBoostSpeedBonus *= TurboMultiplier;
                 }),
+
+            new KartUpgrade(
+                "Blindagem",
+                "Reduz o efeito de mancha de oleo e pulso de choque",
+                kart => kart.slowResistance += SlowResistanceBonus),
+
+            new KartUpgrade(
+                "Tracao",
+                "Atinge a curva maxima com menos velocidade",
+                kart => kart.minSpeedFactorForFullTurn *= TractionMultiplier),
+
+            new KartUpgrade(
+                "Reflexo de piloto",
+                "Precisa de menos tempo de drift para ganhar o mini-turbo",
+                kart => kart.minDriftSecondsForBoost *= DriftBoostThresholdMultiplier),
         };
     }
 }

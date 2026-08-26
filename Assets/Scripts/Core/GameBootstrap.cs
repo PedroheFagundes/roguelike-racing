@@ -8,19 +8,15 @@ using UnityEngine;
 namespace RoguelikeRacing.Core
 {
     /// <summary>
-    /// Spawns the whole prototype (track, player kart, AI karts, chase camera, light)
-    /// purely from code via RuntimeInitializeOnLoadMethod. This means the .unity scene
-    /// file itself can stay empty/default: nothing here depends on hand-wired scene
-    /// content or prefabs, which keeps the scene file simple and safe to hand-author or
-    /// regenerate.
+    /// Shows the pre-race setup screen (track + character pick), then spawns the whole
+    /// race (track, player kart, AI karts, chase camera, light) from code once the
+    /// player confirms. This means the .unity scene file itself can stay empty/default:
+    /// nothing here depends on hand-wired scene content or prefabs, which keeps the
+    /// scene file simple and safe to hand-author or regenerate.
     /// </summary>
     public static class GameBootstrap
     {
         const string RootName = "~Bootstrap";
-
-        static readonly Color PlayerColor = new Color(0.15f, 0.55f, 0.95f);
-        static readonly Color AiColor1 = new Color(0.9f, 0.25f, 0.15f);
-        static readonly Color AiColor2 = new Color(0.95f, 0.8f, 0.1f);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Initialize()
@@ -32,11 +28,21 @@ namespace RoguelikeRacing.Core
 
             BuildLighting(root.transform);
 
-            TrackData track = TrackBuilder.BuildOvalTrack(root.transform);
-            List<Checkpoint> checkpoints = CheckpointBuilder.BuildCheckpoints(track, root.transform);
-            PauseChoiceUI pauseChoiceUI = BuildPauseChoiceUI(root.transform);
+            var setupGO = new GameObject("RaceSetupUI");
+            setupGO.transform.SetParent(root.transform, false);
+            var setupUI = setupGO.AddComponent<RaceSetupUI>();
+            setupUI.RaceConfirmed += (trackLayout, characterIndex) => BuildRace(root.transform, trackLayout, characterIndex);
+        }
 
-            GameObject playerKart = KartFactory.SpawnKart(track.StartPosition, track.StartRotation, root.transform, "PlayerKart", PlayerColor);
+        static void BuildRace(Transform root, TrackLayout trackLayout, int playerCharacterIndex)
+        {
+            TrackData track = TrackBuilder.Build(trackLayout.BuildCenterline(), root);
+            List<Checkpoint> checkpoints = CheckpointBuilder.BuildCheckpoints(track, root);
+            PauseChoiceUI pauseChoiceUI = BuildPauseChoiceUI(root);
+
+            CharacterDefinition playerCharacter = CharacterCatalog.All[playerCharacterIndex];
+            GameObject playerKart = KartFactory.SpawnKart(track.StartPosition, track.StartRotation, root, "PlayerKart", playerCharacter.BodyColor);
+            playerCharacter.ApplyTo(playerKart.GetComponent<KartController>());
             playerKart.AddComponent<KartInput>();
 
             var playerLapTracker = playerKart.AddComponent<LapTracker>();
@@ -46,18 +52,28 @@ namespace RoguelikeRacing.Core
             var levelUpController = playerKart.AddComponent<LevelUpController>();
             levelUpController.Initialize(pauseChoiceUI);
 
-            ItemBoxBuilder.BuildItemBoxes(track, root.transform, pauseChoiceUI, playerKart);
+            ItemBoxBuilder.BuildItemBoxes(track, root, pauseChoiceUI, playerKart);
+
+            // AI gets whichever characters the player didn't pick, so every race still
+            // features all 3 archetypes regardless of what the player chose. This assumes
+            // exactly 2 AI karts for exactly 3 characters (CharacterCatalog.All.Count - 1);
+            // growing either roster independently would need revisiting this pairing.
+            var aiCharacters = new List<CharacterDefinition>();
+            for (int i = 0; i < CharacterCatalog.All.Count; i++)
+            {
+                if (i != playerCharacterIndex) aiCharacters.Add(CharacterCatalog.All[i]);
+            }
 
             // Staggered grid behind the player, offset to either side so they don't
             // spawn stacked on top of each other (and each other's Rigidbody).
-            SpawnAIKart(track, root.transform, "AIKart_1", AiColor1, checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f);
-            SpawnAIKart(track, root.transform, "AIKart_2", AiColor2, checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -2.5f);
+            SpawnAIKart(track, root, "AIKart_1", aiCharacters[0], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f);
+            SpawnAIKart(track, root, "AIKart_2", aiCharacters[1], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -2.5f);
 
-            BuildChaseCamera(root.transform, playerKart.transform, track.StartPosition);
-            BuildRaceHud(root.transform, playerLapTracker);
+            BuildChaseCamera(root, playerKart.transform, track.StartPosition);
+            BuildRaceHud(root, playerLapTracker);
         }
 
-        static void SpawnAIKart(TrackData track, Transform parent, string name, Color color, int checkpointCount, int indexOffsetBehindStart, float lateralOffset)
+        static void SpawnAIKart(TrackData track, Transform parent, string name, CharacterDefinition character, int checkpointCount, int indexOffsetBehindStart, float lateralOffset)
         {
             int count = track.CenterlinePoints.Count;
             int spawnIndex = ((-indexOffsetBehindStart % count) + count) % count;
@@ -68,12 +84,14 @@ namespace RoguelikeRacing.Core
             Quaternion rotation = Quaternion.LookRotation(direction, Vector3.up);
             Vector3 position = point + rotation * Vector3.right * lateralOffset + Vector3.up * 0.4f;
 
-            GameObject aiKart = KartFactory.SpawnKart(position, rotation, parent, name, color);
+            GameObject aiKart = KartFactory.SpawnKart(position, rotation, parent, name, character.BodyColor);
+
+            var aiController = aiKart.GetComponent<KartController>();
+            character.ApplyTo(aiController);
 
             var driver = aiKart.AddComponent<KartAIDriver>();
             driver.Initialize(track.CenterlinePoints, startWaypointIndex: (spawnIndex + 1) % count);
 
-            var aiController = aiKart.GetComponent<KartController>();
             var lapTracker = aiKart.AddComponent<LapTracker>();
             lapTracker.Initialize(checkpointCount);
             lapTracker.LapCompleted += lap =>

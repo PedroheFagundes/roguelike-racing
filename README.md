@@ -5,13 +5,28 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 5 — caixa de item
+## Status atual: Passo 6 — mais pistas, personagens e upgrades
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
   drift com boost ao soltar (mini-turbo), tudo com física simples da Unity.
-- Pista oval mínima gerada por código, feita de primitivas (sem assets
-  externos).
+- 3 pistas selecionáveis (`TrackCatalog`), geradas por código, sem assets
+  externos: **Oval** (curvas largas e contínuas), **Estádio** (retas
+  longas + curva fechada em cada ponta) e **Técnica** (curvas apertadas
+  alternadas). `TrackBuilder` foi separado em "gerar pontos da centerline"
+  (uma função por traçado) + "construir pista a partir de pontos" (lógica
+  única, reaproveitada pelas 3) — pista nova = só escrever mais um gerador
+  de pontos.
+- 3 personagens selecionáveis (`CharacterCatalog`): **Equilibrado**,
+  **Veloz** (+velocidade máxima, -aceleração/curva) e **Ágil**
+  (+aceleração/curva, -velocidade máxima) — ainda só primitiva + cor
+  diferente, sem arte nova. O jogador escolhe 1 na tela inicial; a IA
+  fica automaticamente com os outros 2, então todo personagem sempre
+  aparece na corrida.
+- Tela de setup pré-corrida (`RaceSetupUI`): escolhe pista e personagem
+  antes de qualquer coisa ser montada, com suporte completo a mouse,
+  teclado e controle (mesmo padrão de navegação do painel de level
+  up/item).
 - Câmera de 3ª pessoa seguindo o kart do jogador.
 - 2 oponentes de IA (`KartAIDriver`) seguindo os waypoints da pista (o
   mesmo `CenterlinePoints` usado para desenhar a pista): mira no próximo
@@ -30,12 +45,14 @@ Implementado:
 - Level up por volta (`LevelUpController`, só no kart do jogador): ao
   completar volta, pausa o jogo (`Time.timeScale = 0`) e mostra um painel
   (`PauseChoiceUI`, `OnGUI`) com 3 upgrades sorteados sem repetição de um
-  catálogo de 4 (`KartUpgradeCatalog`): +velocidade máxima, +aceleração,
-  +taxa de curva, +boost do mini-turbo. Efeito permanente e cumulativo
-  (multiplicativo) pro resto da corrida. IA não vê esse painel — ao
-  completar volta, ganha um upgrade aleatório do mesmo catálogo aplicado
-  na hora, sem pausa, só pra não ficar pra trás do jogador enquanto ele
-  sobe de nível.
+  catálogo de **7** (`KartUpgradeCatalog`): +velocidade máxima,
+  +aceleração, +taxa de curva, +boost do mini-turbo, **Blindagem**
+  (resiste a mancha de óleo/pulso de choque), **Tração** (atinge curva
+  máxima com menos velocidade) e **Reflexo de piloto** (mini-turbo exige
+  menos tempo de drift). Efeito permanente e cumulativo (multiplicativo)
+  pro resto da corrida. IA não vê esse painel — ao completar volta, ganha
+  um upgrade aleatório do mesmo catálogo aplicado na hora, sem pausa, só
+  pra não ficar pra trás do jogador enquanto ele sobe de nível.
 
 - Caixas de item (`ItemBox`, `ItemBoxBuilder`): 5 caixas giratórias
   espalhadas pela pista, alternando lado esquerdo/direito da linha de
@@ -52,7 +69,8 @@ Implementado:
 Não implementado ainda (propositalmente, por ordem de trabalho):
 rubber-banding, posição de corrida (1º/2º/3º), fim de corrida (N voltas).
 Ver `docs/DESIGN_DECISIONS.md` para a arquitetura de decisão compartilhada
-entre level up e item, pensada pra não travar quando multiplayer entrar.
+entre level up e item, pensada pra não travar quando multiplayer entrar,
+e para as decisões do passo 6 (pistas/personagens/upgrades).
 
 ## Teclado + controle (gamepad), incluindo Steam Deck
 
@@ -92,9 +110,11 @@ de verificação abaixo.
    é esperado, este repo não commitou `.meta` ainda. **Depois de abrir uma
    vez, rode `git status` e commite os `.meta` gerados** para fixar os GUIDs.
 3. Abra a cena `Assets/Scenes/Prototype_KartMovement.unity` e dê Play.
-   A cena em si está praticamente vazia — todo o cenário (pista, kart,
-   câmera, luz) é montado em runtime por `GameBootstrap.cs`. Não precisa
-   arrastar nada manualmente.
+   A cena em si está praticamente vazia — todo o cenário (tela de setup,
+   pista, kart, câmera, luz) é montado em runtime por `GameBootstrap.cs`.
+   Não precisa arrastar nada manualmente.
+4. Escolha pista e personagem na tela inicial e clique (ou confirme com
+   teclado/controle) em "Iniciar corrida".
 
 ## Controles
 
@@ -103,7 +123,7 @@ de verificação abaixo.
 | Acelerar / ré | `W`/`↑` e `S`/`↓` | Analógico esquerdo (frente/trás) |
 | Virar | `A`/`←` e `D`/`→` | Analógico esquerdo (esquerda/direita) |
 | Drift | `Shift` ou `Space` | Botão sul (A/Cross) ou ombro direito (RB/R1) |
-| Navegar no painel de escolha | `↑`/`↓` ou `W`/`S` | Analógico ou d-pad |
+| Navegar (setup / painel de escolha) | Setas ou `WASD` | Analógico ou d-pad |
 | Confirmar escolha | `Enter` ou `Space` | Botão sul (A/Cross) |
 
 Drift: segure enquanto vira; solte para ganhar o boost do mini-turbo se
@@ -153,13 +173,16 @@ o Editor e jogar — isso não foi validado neste ambiente.
 ```
 Assets/Scripts/
   Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
-  Track/    TrackBuilder, Checkpoint, CheckpointBuilder (pista + gates procedurais)
+  Track/    TrackBuilder, TrackCatalog, Checkpoint, CheckpointBuilder
+            (pista procedural + 3 tracados + gates)
   Race/     LapTracker, RaceHud, LevelUpController, PauseChoiceUI,
             ChoicePrompt, KartUpgrade, KartUpgradeCatalog,
             ItemBox, ItemBoxBuilder, ItemDefinition, ItemCatalog,
-            ItemHazards, OilSlickHazard
+            ItemHazards, OilSlickHazard,
+            CharacterDefinition, CharacterCatalog
   Camera/   ChaseCamera
-  Core/     GameBootstrap (monta tudo em runtime)
+  Core/     GameBootstrap (monta a corrida em runtime), RaceSetupUI
+            (tela de escolha de pista/personagem)
 Assets/Scenes/
   Prototype_KartMovement.unity
 ProjectSettings/

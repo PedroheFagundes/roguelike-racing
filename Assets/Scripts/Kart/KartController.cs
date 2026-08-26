@@ -36,6 +36,10 @@ namespace RoguelikeRacing.Kart
         public LayerMask groundMask = ~0;
         public float groundCheckDistance = 1.2f;
 
+        [Header("Resistances")]
+        [Tooltip("0 = ApplySlow (oil slick/shockwave) applies at full strength, 1 = fully immune. Raised by the Blindagem level-up.")]
+        public float slowResistance = 0f;
+
         Rigidbody _rb;
 
         float _throttleInput;
@@ -94,12 +98,17 @@ namespace RoguelikeRacing.Kart
             _shieldTimeRemaining = Mathf.Max(_shieldTimeRemaining, duration);
         }
 
-        /// <summary>Offensive item effect (oil slick, shockwave, ...). No-ops while shielded.</summary>
+        /// <summary>
+        /// Offensive item effect (oil slick, shockwave, ...). No-ops while shielded;
+        /// otherwise softened towards "no effect" by slowResistance (0 = full effect,
+        /// 1 = fully immune).
+        /// </summary>
         public void ApplySlow(float multiplier, float duration)
         {
             if (IsShielded) return;
 
-            _slowMultiplier = Mathf.Clamp01(multiplier);
+            float effectiveMultiplier = Mathf.Lerp(multiplier, 1f, Mathf.Clamp01(slowResistance));
+            _slowMultiplier = Mathf.Clamp01(effectiveMultiplier);
             _slowTimeRemaining = duration;
         }
 

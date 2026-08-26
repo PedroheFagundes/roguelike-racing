@@ -221,9 +221,76 @@ continua funcionando também.
 - Nada disso foi testado num Deck real ou mesmo no Editor — ver
   checklist de verificação no `README.md`.
 
+## Passo 6 — mais pistas, personagens e upgrades
+
+**Pistas: refatorei `TrackBuilder` em vez de duplicar código por pista.**
+Separei "gerar a lista de pontos da centerline" (uma função por formato:
+`GenerateOvalCenterline`, `GenerateStadiumCenterline`,
+`GenerateTechnicalCenterline`) de "construir pista a partir de uma lista
+de pontos" (`TrackBuilder.Build`, que não sabe nem precisa saber a forma —
+só percorre pontos consecutivos e constrói pista/muro entre cada par).
+Isso significa que toda a base já construída (checkpoints, waypoints de
+IA, spawn de item box) continua funcionando sem mudar uma linha pras
+pistas novas, porque tudo já consumia `TrackData.CenterlinePoints`
+genericamente desde o passo 1 — só precisei trocar quem gera esses
+pontos. Adicionar uma 4ª pista no futuro é só escrever mais um gerador de
+pontos, não mexer no resto.
+
+A pista "Técnica" usa um truque pra garantir que o traçado não se cruza
+sozinho sem eu precisar validar isso visualmente (não tenho Editor):
+gero os pontos com ângulo estritamente crescente ao redor de um centro
+(uma volta completa, um ponto por ângulo), variando só o raio a cada
+ponto. Isso torna o polígono "estrelado" em relação ao centro por
+construção — geometricamente garantido não se auto-intersectar,
+independente de quão bruscamente o raio varia entre pontos vizinhos. Foi
+a forma de conseguir curvas fechadas/alternadas "de verdade" sem arriscar
+uma pista com bug de geometria que eu não teria como perceber sem abrir o
+Editor.
+
+**Não fiz pista em formato de oito (cruzamento real).** Um cruzamento de
+pista de verdade (tipo autódromo em 8) precisaria de desnível/rampa pra
+os dois trechos não ocuparem o mesmo plano — isso é problema de
+level design 3D de verdade (altura, rampa, colisão em Y), não só
+"gerar mais pontos", e não dava pra validar sem testar fisicamente. Fica
+pra depois se fizer sentido.
+
+**Personagens: 3 arquétipos veloz/ágil/equilibrado, aplicados uma vez no
+spawn.** `CharacterDefinition.ApplyTo` multiplica os mesmos campos
+públicos do `KartController` que os upgrades de level up já usam
+(`maxForwardSpeed`, `acceleration`, `baseTurnRateDegPerSec`) — a
+diferença é que personagem aplica uma vez só, no spawn, e upgrade
+continua empilhando depois disso a cada volta. Escolhi exatamente 3
+porque bate com os 2 karts de IA existentes: jogador escolhe 1, os outros
+2 personagens vão automaticamente pros 2 oponentes, garantindo que todo
+arquétipo sempre aparece numa corrida. Isso cria um acoplamento implícito
+(catálogo de personagem = karts de IA + 1) que documentei com comentário
+no código — se um dia quiser mais personagens sem aumentar o número de
+IA, essa conta precisa ser revisitada.
+
+**Tela de setup pré-corrida em vez de menu separado/nova cena.**
+`RaceSetupUI` segue o mesmo padrão OnGUI + navegação por teclado/
+controle do `PauseChoiceUI` (não dava pra adicionar escolha de pista/
+personagem e deixar isso mouse-only, seria o mesmo problema que corrigi
+no painel de pausa). Não criei uma cena separada de menu porque isso
+exigiria configurar `EditorBuildSettings.asset` (lista de cenas do build)
+— mais um arquivo de projeto pra acertar sem Editor pra validar. Em vez
+disso, o bootstrap simplesmente não constrói a corrida até o jogador
+confirmar na tela de setup, tudo na mesma cena única já existente.
+
+**Upgrades: catálogo foi de 4 pra 7, cobrindo mecânicas que ainda não
+tinham upgrade nenhum.** Os 3 novos (Blindagem, Tração, Reflexo de
+piloto) usam alavancas do `KartController` que os 4 antigos não tocavam:
+resistência a lentidão (`slowResistance`, campo novo, usado dentro de
+`ApplySlow`), limiar de velocidade pra atingir curva máxima
+(`minSpeedFactorForFullTurn`) e tempo mínimo de drift pro mini-turbo
+(`minDriftSecondsForBoost`). Blindagem em particular cria uma
+interação de propósito com os itens do passo 5: reduz o efeito de mancha
+de óleo/pulso de choque, então level up e item deixam de ser sistemas
+isolados.
+
 ## Pista e kart
-- Pista: oval fechado gerado por código (`TrackBuilder.cs`), cubos para
-  pista/muros, sem malha externa.
+- Pista: fechada, gerada por código (`TrackBuilder.cs`), cubos para
+  pista/muros, sem malha externa. 3 tracados desde o passo 6 (ver acima).
 - Kart: primitivas (cubo + cápsula + cilindros), sem collider múltiplo —
   um único `BoxCollider` no root pra evitar jitter de física.
 - Toda a cena (`Prototype_KartMovement.unity`) é montada em runtime por
