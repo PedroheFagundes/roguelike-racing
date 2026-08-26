@@ -1,0 +1,35 @@
+# Unity generated folders
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/UserSettings/
+/MemoryCaptures/
+
+# Unity generated IDE/project files
+/[Aa]ssets/AssetStoreTools*
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.vs/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# .NET / dotnet test artifacts
+Tests/**/bin/
+Tests/**/obj/
