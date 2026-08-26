@@ -96,6 +96,15 @@ Implementado:
   de colisão da física antes dela fazer efeito. `KartController` agora
   faz "collide and slide": desliza ao longo da parede em vez de travar, e
   sai livre assim que o volante aponta pra longe dela.
+- Direção suavizada (teclado é digital -1/0/1, sem rampa isso vira "snap"
+  instantâneo) e taxa de curva reduzida (140°/s → 110°/s), pra ficar
+  menos descontrolado. Vale pra IA também.
+- Pistas ~50% maiores e mais largas (raio/reta de cada traçado e largura
+  da pista todos aumentados proporcionalmente).
+- Checkpoints (as "paredes" coloridas — ciano = normal, amarelo = largada/
+  chegada) redesenhados como arco (dois pilares + viga, meio aberto) em
+  vez de bloco sólido cruzando a pista — não eram bug, mas tinham cara de
+  parede/obstáculo. A detecção de volta não mudou, só a aparência.
 
 Não implementado ainda (propositalmente, por ordem de trabalho):
 rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`

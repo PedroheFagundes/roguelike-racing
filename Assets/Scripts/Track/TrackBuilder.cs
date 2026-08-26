@@ -28,7 +28,7 @@ namespace RoguelikeRacing.Track
         public static TrackData Build(
             List<Vector3> centerlinePoints,
             Transform parent,
-            float roadWidth = 8f,
+            float roadWidth = 12f,
             float wallHeight = 1.2f,
             float wallThickness = 0.8f)
         {
@@ -101,7 +101,7 @@ namespace RoguelikeRacing.Track
         }
 
         /// <summary>Elongated ellipse — wide, continuous curves, no sharp corners.</summary>
-        public static List<Vector3> GenerateOvalCenterline(float radiusX = 34f, float radiusZ = 22f, int segments = 40)
+        public static List<Vector3> GenerateOvalCenterline(float radiusX = 50f, float radiusZ = 34f, int segments = 48)
         {
             var points = new List<Vector3>(segments);
             for (int i = 0; i < segments; i++)
@@ -117,7 +117,7 @@ namespace RoguelikeRacing.Track
         /// semicircular hairpin at each end. Built as two explicit straight points plus
         /// two arcs, then deduplicated where they meet.
         /// </summary>
-        public static List<Vector3> GenerateStadiumCenterline(float straightLength = 44f, float turnRadius = 16f, int segmentsPerTurn = 14)
+        public static List<Vector3> GenerateStadiumCenterline(float straightLength = 70f, float turnRadius = 22f, int segmentsPerTurn = 16)
         {
             float halfStraight = straightLength * 0.5f;
             var points = new List<Vector3>();
@@ -140,7 +140,7 @@ namespace RoguelikeRacing.Track
         /// </summary>
         public static List<Vector3> GenerateTechnicalCenterline()
         {
-            float[] radii = { 30f, 24f, 30f, 18f, 26f, 14f, 22f, 30f, 20f, 12f, 24f, 30f, 16f, 26f, 22f, 30f };
+            float[] radii = { 45f, 36f, 45f, 27f, 39f, 21f, 33f, 45f, 30f, 18f, 36f, 45f, 24f, 39f, 33f, 45f };
 
             var points = new List<Vector3>(radii.Length);
             for (int i = 0; i < radii.Length; i++)

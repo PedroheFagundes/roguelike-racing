@@ -494,3 +494,70 @@ Sources:
 - [Limit sliding along walls - Unity Character Controller docs](https://docs.unity3d.com/Packages/com.unity.charactercontroller@1.3/manual/prevent-sliding-along-wall.html)
 - [Arcade car physics - GameDev.net Forums](https://gamedev.net/forums/topic/699625-arcade-car-physics/5394113/)
 - [Arcade Kart Physics - Unity Discussions](https://forum.unity.com/threads/arcade-kart-physics.171399/)
+
+## "Ainda meio descontrolado" — suavização de direção + curva mais lenta
+
+O wall-slide resolveu o travamento, mas você ainda achou a direção
+descontrolada em geral. Sem conseguir jogar, o principal suspeito por
+eliminação: `KartInput`/`KartAIDriver` mandam o eixo de direção como
+-1/0/1 puro (teclado é digital, sem analógico de verdade) direto pro
+`KartController`, que sempre respondeu a isso instantaneamente — sem
+nenhuma rampa, o kart vai de "sem virar" pra "virando na taxa máxima" num
+único frame. Isso é diferente de praticamente todo kart racer de
+verdade: mesmo em controle digital, jogos como Mario Kart suavizam a
+entrada de direção internamente, então o carro não faz esse "snap".
+
+Mudanças em `KartController.cs`:
+- **Suavização de direção nova** (`steerResponseSpeed`, `UpdateSteerSmoothing`):
+  o valor de direção *usado na física* agora persegue o valor que você
+  está segurando, com uma taxa máxima de mudança por segundo, em vez de
+  copiar instantaneamente. Isso sozinho deve ser a mudança que mais se
+  sente — direção deixa de ser "on/off" e vira uma rampa curta.
+- **Taxa de curva base reduzida**: `baseTurnRateDegPerSec` 140 → 110
+  graus/seg. 140 significava virar 180° em pouco mais de 1 segundo na
+  velocidade máxima — rápido demais pra controlar com precisão.
+- **Multiplicador de curva no drift reduzido**: `driftTurnMultiplier`
+  1.6 → 1.4, pra não amplificar demais a taxa já reduzida acima.
+
+Isso vale pra IA também (mesmo `KartController` compartilhado), então os
+oponentes devem ficar com curva um pouco mais "pesada" também, não só o
+jogador.
+
+**Não fiz** (fica registrado, caso o problema seja outra coisa): mudar a
+curva de `KartPhysicsMath.ComputeTurnRateDegPerSec` pra perder taxa de
+curva em alta velocidade (efeito "sobreesterço só em baixa velocidade",
+comum em kart racer de verdade) — isso mudaria o formato da curva
+matemática que já tem teste automatizado (`Tests/`), é uma mudança mais
+arriscada de acertar sem poder rodar os testes aqui, e eu não tinha
+certeza que era isso que estava causando a sensação de descontrole. Se as
+mudanças acima não bastarem, essa é a próxima coisa a tentar.
+
+## Pistas maiores e mais largas
+
+Aumentei tudo proporcionalmente (~1.5x): `roadWidth` (padrão do
+`TrackBuilder.Build`) de 8 pra 12; Oval de raio 34x22 pra 50x34; Estádio
+de reta 44/raio 16 pra reta 70/raio 22; Técnica com todos os raios do
+array multiplicados por 1.5. Ajustei também o que dependia dessas
+constantes pra não ficar desproporcional: `ItemBoxBuilder` agora calcula
+o desvio lateral das caixas como uma fração da largura real da pista em
+vez de um valor fixo; `KartAIDriver.waypointReachedDistance` subiu de 5
+pra 8 (pontos da centerline ficam mais espaçados numa pista maior); o
+grid de largada dos karts de IA no `GameBootstrap` abriu um pouco mais
+(±2.5 → ±3.5).
+
+## Paredes azuis — eram os checkpoints, redesenhados como arco
+
+Isso não era bug, mas era confuso: as "paredes azuis" (e a amarela mais
+adiante) são os gates de checkpoint que já existem desde o passo 3 —
+servem pra impedir cortar curva ou dar ré pra "completar" volta (ver seção
+de checkpoint mais acima). O problema era só visual: eu desenhava cada
+gate como um bloco sólido cruzando a pista inteira, que fica exatamente
+com cara de parede/obstáculo — nada indicava "isso aqui é atravessável".
+
+Redesenhei em `CheckpointBuilder.cs` como um arco: dois pilares finos nas
+bordas da pista + uma viga horizontal em cima, com o meio todo aberto
+(sem nada visível ali). O volume de detecção (trigger, invisível) continua
+cobrindo a abertura inteira — a lógica de volta não muda em nada, só a
+aparência. Um arco lê como "passagem" de forma muito mais óbvia que um
+bloco sólido, é como praticamente todo jogo de corrida sinaliza checkpoint
+(incluindo a linha de largada/chegada).

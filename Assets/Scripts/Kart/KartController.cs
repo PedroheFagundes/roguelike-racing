@@ -29,12 +29,14 @@ namespace RoguelikeRacing.Kart
         public float engineBrakeDeceleration = 10f;
 
         [Header("Steering")]
-        public float baseTurnRateDegPerSec = 140f;
+        public float baseTurnRateDegPerSec = 110f;
         public float minSpeedFactorForFullTurn = 0.25f;
         public float lowSpeedTurnFactor = 0.4f;
+        [Tooltip("How fast the effective steer input ramps towards what's actually held, in units/sec of the -1..1 range. Without this, digital input (keyboard, d-pad) snaps instantly between full-left/none/full-right, which is what read as \"out of control\" -- see docs/DESIGN_DECISIONS.md.")]
+        public float steerResponseSpeed = 6f;
 
         [Header("Drift")]
-        public float driftTurnMultiplier = 1.6f;
+        public float driftTurnMultiplier = 1.4f;
         public float driftLateralSlip = 6f;
         public float minDriftSecondsForBoost = 0.6f;
         public float driftBoostSpeedBonus = 6f;
@@ -57,6 +59,7 @@ namespace RoguelikeRacing.Kart
         readonly Dictionary<Collider, Vector3> _wallContactNormals = new Dictionary<Collider, Vector3>();
 
         float _throttleInput;
+        float _targetSteerInput;
         float _steerInput;
         bool _driftHeld;
 
@@ -95,8 +98,8 @@ namespace RoguelikeRacing.Kart
         public void SetInput(float throttle, float steer, bool drift)
         {
             _throttleInput = Mathf.Clamp(throttle, -1f, 1f);
-            _steerInput = Mathf.Clamp(steer, -1f, 1f);
-            _driftHeld = drift && Mathf.Abs(_steerInput) > 0.1f;
+            _targetSteerInput = Mathf.Clamp(steer, -1f, 1f);
+            _driftHeld = drift && Mathf.Abs(_targetSteerInput) > 0.1f;
         }
 
         /// <summary>Nitro-style item: temporary top-speed bonus, stacks with the drift boost.</summary>
@@ -130,12 +133,19 @@ namespace RoguelikeRacing.Kart
         {
             float dt = Time.fixedDeltaTime;
 
+            UpdateSteerSmoothing(dt);
             CheckGround();
             UpdateDrift(dt);
             UpdateItemEffects(dt);
             UpdateSpeed(dt);
             UpdateSteering(dt);
             ApplyVelocity();
+        }
+
+        void UpdateSteerSmoothing(float dt)
+        {
+            float maxDelta = steerResponseSpeed * dt;
+            _steerInput = Mathf.MoveTowards(_steerInput, _targetSteerInput, maxDelta);
         }
 
         void CheckGround()

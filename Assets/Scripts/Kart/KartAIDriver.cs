@@ -16,7 +16,7 @@ namespace RoguelikeRacing.Kart
     public class KartAIDriver : MonoBehaviour
     {
         [Header("Waypoint following")]
-        public float waypointReachedDistance = 5f;
+        public float waypointReachedDistance = 8f;
 
         [Header("Steering")]
         [Tooltip("Angle (degrees) to the target waypoint that maps to full steering lock.")]

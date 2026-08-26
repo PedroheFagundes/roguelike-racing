@@ -72,8 +72,8 @@ namespace RoguelikeRacing.Core
 
             // Staggered grid behind the player, offset to either side so they don't
             // spawn stacked on top of each other (and each other's Rigidbody).
-            SpawnAIKart(track, root, "AIKart_1", aiCharacters[0], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f, standings: standings);
-            SpawnAIKart(track, root, "AIKart_2", aiCharacters[1], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -2.5f, standings: standings);
+            SpawnAIKart(track, root, "AIKart_1", aiCharacters[0], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 3.5f, standings: standings);
+            SpawnAIKart(track, root, "AIKart_2", aiCharacters[1], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -3.5f, standings: standings);
 
             BuildChaseCamera(root, playerKart.transform, track.StartPosition);
             BuildRaceHud(root, playerLapTracker, standings, wrongWayDetector, playerKart.GetComponent<KartInventory>());

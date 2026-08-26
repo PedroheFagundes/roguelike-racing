@@ -14,8 +14,12 @@ namespace RoguelikeRacing.Race
     {
         public static List<ItemBox> BuildItemBoxes(
             TrackData track, Transform parent, PauseChoiceUI pauseChoiceUI, GameObject playerKart,
-            int boxCount = 5, float lateralOffset = 2f)
+            int boxCount = 5, float? lateralOffset = null)
         {
+            // Scale with the actual road width by default instead of a fixed constant,
+            // so boxes stay a sensible detour off the racing line regardless of track.
+            float offset = lateralOffset ?? track.RoadWidth * 0.3f;
+
             var boxes = new List<ItemBox>(boxCount);
             var root = new GameObject("ItemBoxes").transform;
             root.SetParent(parent, false);
@@ -31,7 +35,7 @@ namespace RoguelikeRacing.Race
                 Vector3 direction = (nextPoint - point).normalized;
                 Quaternion rotation = Quaternion.LookRotation(direction, Vector3.up);
 
-                float side = (i % 2 == 0) ? lateralOffset : -lateralOffset;
+                float side = (i % 2 == 0) ? offset : -offset;
                 Vector3 position = point + rotation * Vector3.right * side + Vector3.up * 0.6f;
 
                 boxes.Add(BuildBox(root, position, pauseChoiceUI, playerKart));
