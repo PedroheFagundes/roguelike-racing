@@ -34,6 +34,7 @@ namespace RoguelikeRacing.Core
 
             TrackData track = TrackBuilder.BuildOvalTrack(root.transform);
             List<Checkpoint> checkpoints = CheckpointBuilder.BuildCheckpoints(track, root.transform);
+            PauseChoiceUI pauseChoiceUI = BuildPauseChoiceUI(root.transform);
 
             GameObject playerKart = KartFactory.SpawnKart(track.StartPosition, track.StartRotation, root.transform, "PlayerKart", PlayerColor);
             playerKart.AddComponent<KartInput>();
@@ -41,6 +42,9 @@ namespace RoguelikeRacing.Core
             var playerLapTracker = playerKart.AddComponent<LapTracker>();
             playerLapTracker.Initialize(checkpoints.Count);
             playerLapTracker.LapCompleted += lap => Debug.Log($"Player completed lap {lap}");
+
+            var levelUpController = playerKart.AddComponent<LevelUpController>();
+            levelUpController.Initialize(pauseChoiceUI);
 
             // Staggered grid behind the player, offset to either side so they don't
             // spawn stacked on top of each other (and each other's Rigidbody).
@@ -67,9 +71,18 @@ namespace RoguelikeRacing.Core
             var driver = aiKart.AddComponent<KartAIDriver>();
             driver.Initialize(track.CenterlinePoints, startWaypointIndex: (spawnIndex + 1) % count);
 
+            var aiController = aiKart.GetComponent<KartController>();
             var lapTracker = aiKart.AddComponent<LapTracker>();
             lapTracker.Initialize(checkpointCount);
-            lapTracker.LapCompleted += lap => Debug.Log($"{name} completed lap {lap}");
+            lapTracker.LapCompleted += lap =>
+            {
+                // AI has no choice UI to show, so it just auto-applies a random upgrade
+                // from the same pool the player picks from — otherwise the player would
+                // out-scale the AI every lap and the roguelike layer wouldn't be testable.
+                KartUpgrade upgrade = KartUpgradeCatalog.All[Random.Range(0, KartUpgradeCatalog.All.Count)];
+                upgrade.Apply(aiController);
+                Debug.Log($"{name} completed lap {lap}, auto-upgraded: {upgrade.Name}");
+            };
         }
 
         static void BuildLighting(Transform root)
@@ -107,6 +120,13 @@ namespace RoguelikeRacing.Core
 
             var hud = hudGO.AddComponent<RaceHud>();
             hud.target = playerLapTracker;
+        }
+
+        static PauseChoiceUI BuildPauseChoiceUI(Transform root)
+        {
+            var go = new GameObject("PauseChoiceUI");
+            go.transform.SetParent(root, false);
+            return go.AddComponent<PauseChoiceUI>();
         }
     }
 }

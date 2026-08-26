@@ -99,6 +99,31 @@ Ainda não existe: posição de corrida (1º/2º/3º), fim de corrida (N voltas
 e acabou), nem tempo de volta. Não é necessário pra "detectar volta" —
 fica pra quando isso importar de fato pro gameplay.
 
+## Passo 4 — level up por volta
+Implementado exatamente como desenhado na seção 3 acima: `ChoicePrompt`
+é o tipo genérico de "opção com efeito" (título, descrição, `Action Apply`)
+que tanto o level up quanto os itens do passo 5 vão usar — a UI
+(`PauseChoiceUI`) e o pause não sabem se estão mostrando um upgrade ou um
+item, só sabem mostrar uma lista de `ChoicePrompt` e chamar `Apply` no que
+for clicado. `KartUpgrade`/`KartUpgradeCatalog` são a parte específica de
+level up: dado + catálogo de 4 upgrades, cada um vira um `ChoicePrompt`
+sorteando 3 sem repetição a cada volta (`LevelUpController`).
+
+Upgrades são aplicados direto nos campos públicos do `KartController`
+(multiplicativo, então empilha se escolher o mesmo de novo numa volta
+seguinte) — não existe um sistema de "stats base + modificadores"
+separado; pra 4 upgrades simples isso seria over-engineering agora. Se a
+lista de upgrades crescer bastante ou precisar de upgrades temporários
+(tipo os itens do passo 5), aí sim vale revisitar.
+
+IA não usa `LevelUpController` (não tem UI pra mostrar pra ninguém) — ao
+completar volta, aplica um upgrade aleatório do mesmo catálogo direto,
+sem pausa. Isso não estava no pedido original, é uma decisão de default:
+sem isso, o jogador ficaria trivialmente mais forte a cada volta enquanto
+a IA fica parada, o que underminaria testar se a camada roguelike é
+divertida (ela deixaria de ser um desafio rapidamente). Se não for o
+comportamento desejado, é uma linha pra remover em `GameBootstrap`.
+
 ## Pista e kart
 - Pista: oval fechado gerado por código (`TrackBuilder.cs`), cubos para
   pista/muros, sem malha externa.

@@ -5,7 +5,7 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 3 — checkpoint/detecção de volta
+## Status atual: Passo 4 — level up por volta
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
@@ -27,10 +27,21 @@ Implementado:
   Volta completa loga no console e aparece num HUD simples (`RaceHud`,
   `OnGUI`) só pro jogador.
 
-Não implementado ainda (propositalmente, por ordem de trabalho): level up,
-caixas de item, rubber-banding, posição de corrida (1º/2º/3º), fim de
-corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md` para a proposta de como
-o level up/item vai ser feito sem travar em multiplayer futuro.
+- Level up por volta (`LevelUpController`, só no kart do jogador): ao
+  completar volta, pausa o jogo (`Time.timeScale = 0`) e mostra um painel
+  (`PauseChoiceUI`, `OnGUI`) com 3 upgrades sorteados sem repetição de um
+  catálogo de 4 (`KartUpgradeCatalog`): +velocidade máxima, +aceleração,
+  +taxa de curva, +boost do mini-turbo. Efeito permanente e cumulativo
+  (multiplicativo) pro resto da corrida. IA não vê esse painel — ao
+  completar volta, ganha um upgrade aleatório do mesmo catálogo aplicado
+  na hora, sem pausa, só pra não ficar pra trás do jogador enquanto ele
+  sobe de nível.
+
+Não implementado ainda (propositalmente, por ordem de trabalho): caixas de
+item, rubber-banding, posição de corrida (1º/2º/3º), fim de corrida (N
+voltas). Ver `docs/DESIGN_DECISIONS.md` para a arquitetura de decisão
+compartilhada entre level up e item, pensada pra não travar quando
+multiplayer entrar.
 
 ## Abrir no Unity
 
@@ -52,6 +63,8 @@ o level up/item vai ser feito sem travar em multiplayer futuro.
 - Virar: `A`/`←` e `D`/`→`
 - Drift: `Shift` ou `Space` (segure enquanto vira; solte para ganhar o
   boost do mini-turbo se segurou tempo suficiente)
+- Ao completar uma volta: o jogo pausa e abre um painel — clique com o
+  mouse num dos upgrades pra escolher e continuar.
 
 ## Testes headless (fora do Editor)
 
@@ -77,7 +90,8 @@ o Editor e jogar — isso não foi validado neste ambiente.
 Assets/Scripts/
   Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
   Track/    TrackBuilder, Checkpoint, CheckpointBuilder (pista + gates procedurais)
-  Race/     LapTracker, RaceHud
+  Race/     LapTracker, RaceHud, LevelUpController, PauseChoiceUI,
+            ChoicePrompt, KartUpgrade, KartUpgradeCatalog
   Camera/   ChaseCamera
   Core/     GameBootstrap (monta tudo em runtime)
 Assets/Scenes/
