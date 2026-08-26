@@ -5,7 +5,7 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 6 — mais pistas, personagens e upgrades
+## Status atual: Passo 6 + HUD/correções de feedback de jogo
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
@@ -60,17 +60,38 @@ Implementado:
   (`ItemCatalog`, mesmo painel `PauseChoiceUI` do level up): Nitro
   (velocidade temporária), Escudo (bloqueia o próximo efeito ofensivo),
   Mancha de óleo (larga um obstáculo atrás que desacelera quem passar por
-  cima) e Pulso de choque (desacelera na hora todo mundo perto). Efeito é
-  aplicado assim que escolhido — não existe item guardado pra usar depois
-  (ver `docs/DESIGN_DECISIONS.md`). IA que toca a caixa ganha um item
-  aleatório do mesmo catálogo, sem pausa. Caixa reaparece depois de um
-  cooldown em vez de sumir de vez.
+  cima) e Pulso de choque (desacelera na hora todo mundo perto). **Item
+  escolhido fica guardado** (`KartInventory`, 1 slot) até o jogador
+  apertar o botão de usar — não é mais aplicado na hora da escolha. IA
+  toca a caixa, ganha um item aleatório do mesmo catálogo e usa na hora
+  (ela ainda não tem estratégia de "quando" usar). Caixa reaparece depois
+  de um cooldown em vez de sumir de vez.
+- IA também sobe de nível e usa item — ela nunca ficou de fora disso:
+  ao completar volta ganha upgrade aleatório do catálogo (mesmo mecanismo
+  desde o passo 4), e ao tocar caixa de item ganha e usa item aleatório
+  (passo 5, agora passando pelo mesmo `KartInventory` do jogador). Sem
+  isso o jogador ficaria trivialmente mais forte a cada volta sem
+  nenhuma resposta da IA.
+- HUD do jogador (`RaceHud`) agora mostra: volta atual, **posição na
+  corrida** (`RaceStandings`, 1º/2º/3º entre os 3 karts, calculado por
+  quantos checkpoints+voltas cada um já passou), item guardado, e os
+  comandos pra usar item/drift. Aviso grande de **CONTRAMÃO** aparece
+  quando a velocidade do kart aponta contra a direção da pista
+  (`WrongWayDetector`, só no jogador).
+- Muro da pista corrigido: em curvas fechadas (Estádio, Técnica) sobrava
+  um vão entre um segmento de muro e o próximo, deixando o kart vazar pra
+  fora. Adicionei um "poste" redondo em cada vértice da pista (dos dois
+  lados) que fecha esse vão em qualquer ângulo de curva, e aumentei a
+  espessura padrão do muro. Ver `docs/DESIGN_DECISIONS.md` pro diagnóstico
+  completo — não consegui reproduzir/ver o bug aqui, então vale confirmar
+  que sumiu depois de testar.
 
 Não implementado ainda (propositalmente, por ordem de trabalho):
-rubber-banding, posição de corrida (1º/2º/3º), fim de corrida (N voltas).
-Ver `docs/DESIGN_DECISIONS.md` para a arquitetura de decisão compartilhada
-entre level up e item, pensada pra não travar quando multiplayer entrar,
-e para as decisões do passo 6 (pistas/personagens/upgrades).
+rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`
+para a arquitetura de decisão compartilhada entre level up e item, pensada
+pra não travar quando multiplayer entrar, e para as decisões do passo 6
+(pistas/personagens/upgrades) e desta rodada (HUD/contramão/vazamento/item
+guardado).
 
 ## Teclado + controle (gamepad), incluindo Steam Deck
 
@@ -123,12 +144,15 @@ de verificação abaixo.
 | Acelerar / ré | `W`/`↑` e `S`/`↓` | Analógico esquerdo (frente/trás) |
 | Virar | `A`/`←` e `D`/`→` | Analógico esquerdo (esquerda/direita) |
 | Drift | `Shift` ou `Space` | Botão sul (A/Cross) ou ombro direito (RB/R1) |
+| **Usar item guardado** | `E` ou `Ctrl` | Botão oeste (X/Square) |
 | Navegar (setup / painel de escolha) | Setas ou `WASD` | Analógico ou d-pad |
 | Confirmar escolha | `Enter` ou `Space` | Botão sul (A/Cross) |
 
 Drift: segure enquanto vira; solte para ganhar o boost do mini-turbo se
-segurou tempo suficiente. O painel de level up/item também aceita clique
-de mouse em qualquer opção, além da navegação por teclado/controle acima.
+segurou tempo suficiente. Item: escolher no painel da caixa só *guarda* o
+item (mostrado no HUD) — apertar o botão de usar é que ativa o efeito. O
+painel de level up/item também aceita clique de mouse em qualquer opção,
+além da navegação por teclado/controle acima.
 
 ## Verificar controle/Steam Deck (não testado neste ambiente)
 
@@ -175,10 +199,11 @@ Assets/Scripts/
   Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
   Track/    TrackBuilder, TrackCatalog, Checkpoint, CheckpointBuilder
             (pista procedural + 3 tracados + gates)
-  Race/     LapTracker, RaceHud, LevelUpController, PauseChoiceUI,
-            ChoicePrompt, KartUpgrade, KartUpgradeCatalog,
+  Race/     LapTracker, RaceHud, RaceStandings, WrongWayDetector,
+            LevelUpController, PauseChoiceUI, ChoicePrompt,
+            KartUpgrade, KartUpgradeCatalog,
             ItemBox, ItemBoxBuilder, ItemDefinition, ItemCatalog,
-            ItemHazards, OilSlickHazard,
+            ItemHazards, OilSlickHazard, KartInventory,
             CharacterDefinition, CharacterCatalog
   Camera/   ChaseCamera
   Core/     GameBootstrap (monta a corrida em runtime), RaceSetupUI

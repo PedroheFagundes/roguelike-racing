@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using RoguelikeRacing.Kart;
 using UnityEngine;
 
 namespace RoguelikeRacing.Race
@@ -8,9 +7,11 @@ namespace RoguelikeRacing.Race
     /// <summary>
     /// Trigger box on the track. When the player's kart enters, pauses and offers all 4
     /// items in ItemCatalog as a choice (PauseChoiceUI — same shared pattern as
-    /// LevelUpController). AI karts skip the choice UI entirely and get a random item
-    /// from the same catalog applied immediately, mirroring how AI level-ups work — see
-    /// docs/DESIGN_DECISIONS.md.
+    /// LevelUpController); picking one HOLDS it in the kart's KartInventory rather than
+    /// applying it immediately — the player activates it later with the "use item"
+    /// button (see KartInput / RaceHud). AI karts skip the choice UI entirely, hold a
+    /// random item from the same catalog, and use it right away since they have no
+    /// timing strategy yet — see docs/DESIGN_DECISIONS.md.
     ///
     /// Respawns after a cooldown instead of being destroyed, so a single lap doesn't run
     /// the track dry of items.
@@ -48,34 +49,35 @@ namespace RoguelikeRacing.Race
         {
             if (_collected) return;
 
-            var kart = other.GetComponentInParent<KartController>();
-            if (kart == null) return;
+            var inventory = other.GetComponentInParent<KartInventory>();
+            if (inventory == null) return;
 
             _collected = true;
             SetVisible(false);
 
             if (other.gameObject == _playerKart && _pauseChoiceUI != null)
             {
-                OpenChoiceForPlayer(kart);
+                OpenChoiceForPlayer(inventory);
             }
             else
             {
                 ItemDefinition item = ItemCatalog.All[Random.Range(0, ItemCatalog.All.Count)];
-                item.Use(kart);
+                inventory.Hold(item);
+                inventory.UseHeldItem();
             }
 
             StartCoroutine(RespawnAfterCooldown());
         }
 
-        void OpenChoiceForPlayer(KartController playerController)
+        void OpenChoiceForPlayer(KartInventory playerInventory)
         {
             var prompts = new List<ChoicePrompt>(ItemCatalog.All.Count);
             foreach (ItemDefinition item in ItemCatalog.All)
             {
-                prompts.Add(new ChoicePrompt(item.Name, item.Description, () => item.Use(playerController)));
+                prompts.Add(new ChoicePrompt(item.Name, item.Description, () => playerInventory.Hold(item)));
             }
 
-            _pauseChoiceUI.Open("Item! Escolha um", prompts);
+            _pauseChoiceUI.Open("Item! Escolha um (use depois com o botao de item)", prompts);
         }
 
         IEnumerator RespawnAfterCooldown()

@@ -4,10 +4,12 @@ using RoguelikeRacing.Kart;
 namespace RoguelikeRacing.Race
 {
     /// <summary>
-    /// An item, applied immediately to the kart that picks it once chosen (there is no
-    /// held inventory slot / separate "use" button in this prototype — see
-    /// docs/DESIGN_DECISIONS.md for why). Use mirrors KartUpgrade's shape on purpose so
-    /// both fit through the same ChoicePrompt/PauseChoiceUI pipeline as level-up.
+    /// An item: Use is the effect applied when it's actually activated. Picking an item
+    /// from a box only holds it (see KartInventory); Use runs later, either when the
+    /// player presses the item button (KartInput) or immediately for AI, which has no
+    /// use-timing strategy yet — see docs/DESIGN_DECISIONS.md. Mirrors KartUpgrade's
+    /// shape on purpose so both fit through the same ChoicePrompt/PauseChoiceUI
+    /// pipeline as level-up.
     /// </summary>
     public readonly struct ItemDefinition
     {

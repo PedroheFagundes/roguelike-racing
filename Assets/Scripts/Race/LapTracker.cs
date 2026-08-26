@@ -17,6 +17,15 @@ namespace RoguelikeRacing.Race
         public int LapCount { get; private set; }
         public int TotalCheckpointCount { get; private set; }
 
+        /// <summary>
+        /// Monotonically increasing "how far around the track, in total" value used by
+        /// RaceStandings to rank karts: laps completed count far more than a single
+        /// checkpoint, and within the same lap a higher checkpoint index means further
+        /// along. Approximate (doesn't account for distance within a checkpoint gap),
+        /// which is good enough for a 3-kart prototype leaderboard.
+        /// </summary>
+        public int Progress => LapCount * Mathf.Max(1, TotalCheckpointCount) + _nextExpectedCheckpointIndex;
+
         /// <summary>Raised with the new lap count each time a lap completes.</summary>
         public event Action<int> LapCompleted;
 

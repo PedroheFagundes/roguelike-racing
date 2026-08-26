@@ -39,15 +39,21 @@ namespace RoguelikeRacing.Core
             TrackData track = TrackBuilder.Build(trackLayout.BuildCenterline(), root);
             List<Checkpoint> checkpoints = CheckpointBuilder.BuildCheckpoints(track, root);
             PauseChoiceUI pauseChoiceUI = BuildPauseChoiceUI(root);
+            RaceStandings standings = BuildRaceStandings(root);
 
             CharacterDefinition playerCharacter = CharacterCatalog.All[playerCharacterIndex];
             GameObject playerKart = KartFactory.SpawnKart(track.StartPosition, track.StartRotation, root, "PlayerKart", playerCharacter.BodyColor);
             playerCharacter.ApplyTo(playerKart.GetComponent<KartController>());
+            playerKart.AddComponent<KartInventory>();
             playerKart.AddComponent<KartInput>();
+
+            var wrongWayDetector = playerKart.AddComponent<WrongWayDetector>();
+            wrongWayDetector.Initialize(track.CenterlinePoints);
 
             var playerLapTracker = playerKart.AddComponent<LapTracker>();
             playerLapTracker.Initialize(checkpoints.Count);
             playerLapTracker.LapCompleted += lap => Debug.Log($"Player completed lap {lap}");
+            standings.Register(playerLapTracker);
 
             var levelUpController = playerKart.AddComponent<LevelUpController>();
             levelUpController.Initialize(pauseChoiceUI);
@@ -66,14 +72,14 @@ namespace RoguelikeRacing.Core
 
             // Staggered grid behind the player, offset to either side so they don't
             // spawn stacked on top of each other (and each other's Rigidbody).
-            SpawnAIKart(track, root, "AIKart_1", aiCharacters[0], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f);
-            SpawnAIKart(track, root, "AIKart_2", aiCharacters[1], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -2.5f);
+            SpawnAIKart(track, root, "AIKart_1", aiCharacters[0], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: 2.5f, standings: standings);
+            SpawnAIKart(track, root, "AIKart_2", aiCharacters[1], checkpoints.Count, indexOffsetBehindStart: 3, lateralOffset: -2.5f, standings: standings);
 
             BuildChaseCamera(root, playerKart.transform, track.StartPosition);
-            BuildRaceHud(root, playerLapTracker);
+            BuildRaceHud(root, playerLapTracker, standings, wrongWayDetector, playerKart.GetComponent<KartInventory>());
         }
 
-        static void SpawnAIKart(TrackData track, Transform parent, string name, CharacterDefinition character, int checkpointCount, int indexOffsetBehindStart, float lateralOffset)
+        static void SpawnAIKart(TrackData track, Transform parent, string name, CharacterDefinition character, int checkpointCount, int indexOffsetBehindStart, float lateralOffset, RaceStandings standings)
         {
             int count = track.CenterlinePoints.Count;
             int spawnIndex = ((-indexOffsetBehindStart % count) + count) % count;
@@ -88,12 +94,14 @@ namespace RoguelikeRacing.Core
 
             var aiController = aiKart.GetComponent<KartController>();
             character.ApplyTo(aiController);
+            aiKart.AddComponent<KartInventory>();
 
             var driver = aiKart.AddComponent<KartAIDriver>();
             driver.Initialize(track.CenterlinePoints, startWaypointIndex: (spawnIndex + 1) % count);
 
             var lapTracker = aiKart.AddComponent<LapTracker>();
             lapTracker.Initialize(checkpointCount);
+            standings.Register(lapTracker);
             lapTracker.LapCompleted += lap =>
             {
                 // AI has no choice UI to show, so it just auto-applies a random upgrade
@@ -133,13 +141,16 @@ namespace RoguelikeRacing.Core
             chaseCamera.target = kartTransform;
         }
 
-        static void BuildRaceHud(Transform root, LapTracker playerLapTracker)
+        static void BuildRaceHud(Transform root, LapTracker playerLapTracker, RaceStandings standings, WrongWayDetector wrongWayDetector, KartInventory inventory)
         {
             var hudGO = new GameObject("RaceHud");
             hudGO.transform.SetParent(root, false);
 
             var hud = hudGO.AddComponent<RaceHud>();
             hud.target = playerLapTracker;
+            hud.standings = standings;
+            hud.wrongWayDetector = wrongWayDetector;
+            hud.inventory = inventory;
         }
 
         static PauseChoiceUI BuildPauseChoiceUI(Transform root)
@@ -147,6 +158,13 @@ namespace RoguelikeRacing.Core
             var go = new GameObject("PauseChoiceUI");
             go.transform.SetParent(root, false);
             return go.AddComponent<PauseChoiceUI>();
+        }
+
+        static RaceStandings BuildRaceStandings(Transform root)
+        {
+            var go = new GameObject("RaceStandings");
+            go.transform.SetParent(root, false);
+            return go.AddComponent<RaceStandings>();
         }
     }
 }

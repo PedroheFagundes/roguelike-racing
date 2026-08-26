@@ -300,3 +300,69 @@ isolados.
   alto de erro sem Editor disponível pra validar). Nos próximos passos, dá
   pra mover essa construção pro Editor (GameObjects reais na cena) se for
   mais conveniente para inspecionar/ajustar valores visualmente.
+
+## HUD de volta/posição/contramão, correção de vazamento de pista e item guardado
+
+**Vazamento de kart pra fora da pista — diagnóstico e correção.** Não
+consegui reproduzir isso aqui (sem Editor), então é diagnóstico por
+leitura de código, não observação direta — vale confirmar que sumiu de
+verdade depois de testar. A causa mais provável: cada segmento de muro é
+uma caixa reta orientada na direção daquele trecho específico da pista;
+onde dois segmentos se encontram (todo vértice da centerline), cada um
+aponta pra uma direção um pouco diferente, e isso deixa um vão no canto —
+quase imperceptível em curvas suaves (o Oval original), mas real e maior
+em curvas fechadas, exatamente o que as pistas Estádio e Técnica do passo
+6 adicionaram. Corrigi adicionando um "poste" cilíndrico em cada vértice
+da pista, dos dois lados (interno/externo): por ser redondo, ele fecha o
+vão em qualquer ângulo de curva sem precisar calcular o ângulo exato de
+encontro entre os dois muros (matemática de "miter" de canto, que seria
+mais frágil de acertar sem visualizar). Também aumentei a espessura padrão
+do muro (0.5 → 0.8) como margem extra contra atravessar o muro em alta
+velocidade (kart pode chegar a uns 40+ m/s depois de várias voltas
+empilhando upgrade de velocidade máxima). Se o vazamento persistir depois
+desse fix, pode ser outra causa (ex.: velocidade alta demais tunelando
+mesmo com Continuous Collision Detection) — me avisa com detalhe de qual
+pista/velocidade pra eu investigar mais.
+
+**Posição de corrida: aproximada, não é distância real percorrida.**
+`RaceStandings` ranqueia os karts por `LapTracker.Progress`
+(`voltas * total_de_checkpoints + próximo_checkpoint_esperado`), um
+inteiro que só sobe quando o kart cruza um checkpoint. Isso significa que
+dois karts entre o mesmo par de checkpoints aparecem empatados na posição
+até um deles cruzar o próximo gate, mesmo que um esteja fisicamente bem
+mais à frente. Fiz assim porque calcular distância real ao longo da pista
+(arc-length ao longo da centerline) é mais preciso mas também mais código
+e mais chance de erro que eu não teria como validar visualmente. Pra um
+protótipo de 3 karts isso é suficiente; se a granularidade incomodar no
+teste, o próximo passo natural é interpolar a distância até o próximo
+checkpoint dentro do próprio segmento.
+
+**Contramão: comparado contra o segmento de pista mais próximo, só pro
+jogador.** `WrongWayDetector` acha o ponto mais próximo da centerline e
+compara a velocidade do kart com a direção daquele segmento (produto
+escalar). Não fiz isso pra IA porque a IA já segue os waypoints em ordem
+por construção (`KartAIDriver`) — não existe cenário onde ela estaria de
+contramão, então não haveria nada útil pra mostrar.
+
+**Você perguntou se a IA sobe de nível e usa item — sim, sempre usou.**
+IA ganha upgrade aleatório do catálogo de level up ao completar volta
+desde o passo 4, e ganha item aleatório da caixa desde o passo 5 — isso
+não mudou agora. O que mudou é *como* o item chega até ela (ver abaixo).
+
+**Item deixou de ser aplicado na escolha — agora fica guardado até usar.**
+Isso é uma mudança de decisão em relação ao passo 5: lá eu decidi
+deliberadamente que escolher o item já era o próprio efeito, sem botão de
+"usar" separado, pra reaproveitar 100% o pipeline de pausa+escolha sem
+precisar de inventário. Você pediu pra escrever na HUD o comando de
+"soltar" o poder — isso só faz sentido existir se existir de fato um
+botão que solta algo guardado, então reverti aquela decisão: `KartInventory`
+(1 slot, pega item novo substitui o antigo) segura o item escolhido; o
+jogador aperta `E`/`Ctrl`/botão X pra ativar (`KartInput` chama
+`KartInventory.UseHeldItem()`); a IA ainda não tem noção de "o momento
+certo" de usar, então continua usando imediatamente depois de pegar —
+só que agora passando pelo mesmo `KartInventory`, não mais chamando o
+efeito direto. `ItemDefinition.Use` continua sendo o mesmo tipo de dado
+de antes (`Action<KartController>`), só mudou quando ele é invocado — não
+foi preciso reescrever o catálogo de itens nem a UI de escolha, só o
+`ItemBox` (que agora chama `Hold` em vez de `Use` direto) e o `KartInput`
+(que agora também lê o botão de usar).

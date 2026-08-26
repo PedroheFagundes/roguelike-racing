@@ -30,7 +30,7 @@ namespace RoguelikeRacing.Track
             Transform parent,
             float roadWidth = 8f,
             float wallHeight = 1.2f,
-            float wallThickness = 0.5f)
+            float wallThickness = 0.8f)
         {
             var trackRoot = new GameObject("Track").transform;
             trackRoot.SetParent(parent, false);
@@ -42,10 +42,13 @@ namespace RoguelikeRacing.Track
 
             BuildGroundPlane(trackRoot, centerlinePoints, groundMaterial);
 
-            for (int i = 0; i < centerlinePoints.Count; i++)
+            int count = centerlinePoints.Count;
+            float halfSpan = roadWidth * 0.5f + wallThickness * 0.5f;
+
+            for (int i = 0; i < count; i++)
             {
                 Vector3 a = centerlinePoints[i];
-                Vector3 b = centerlinePoints[(i + 1) % centerlinePoints.Count];
+                Vector3 b = centerlinePoints[(i + 1) % count];
 
                 Vector3 segmentDir = (b - a).normalized;
                 float segmentLength = Vector3.Distance(a, b);
@@ -54,11 +57,35 @@ namespace RoguelikeRacing.Track
 
                 BuildRoadSegment(trackRoot, mid, rot, segmentLength, roadWidth, roadMaterial, i);
 
-                float halfSpan = roadWidth * 0.5f + wallThickness * 0.5f;
                 BuildWall(trackRoot, mid + rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f), rot,
                     segmentLength, wallHeight, wallThickness, wallMaterial, lowFriction, $"WallOuter_{i}");
                 BuildWall(trackRoot, mid + rot * new Vector3(-halfSpan, wallHeight * 0.5f, 0f), rot,
                     segmentLength, wallHeight, wallThickness, wallMaterial, lowFriction, $"WallInner_{i}");
+            }
+
+            // Two straight wall segments meeting at a vertex leave a gap on sharper
+            // corners (each is oriented to its own segment's direction, so their ends
+            // don't line up) -- this is what let karts "leak" off track on Estadio's
+            // hairpins and the Tecnica track. A round post at every vertex, on both
+            // sides, bridges the gap regardless of how sharp the corner is, without
+            // needing to miter the wall boxes.
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 prev = centerlinePoints[(i - 1 + count) % count];
+                Vector3 curr = centerlinePoints[i];
+                Vector3 next = centerlinePoints[(i + 1) % count];
+
+                Vector3 dirIn = (curr - prev).normalized;
+                Vector3 dirOut = (next - curr).normalized;
+                Vector3 bisector = (dirIn + dirOut).normalized;
+                if (bisector.sqrMagnitude < 0.0001f) bisector = dirOut;
+
+                Quaternion rot = Quaternion.LookRotation(bisector, Vector3.up);
+
+                BuildCornerPost(trackRoot, curr + rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f),
+                    wallHeight, wallThickness, wallMaterial, lowFriction, $"CornerOuter_{i}");
+                BuildCornerPost(trackRoot, curr - rot * new Vector3(halfSpan, wallHeight * 0.5f, 0f),
+                    wallHeight, wallThickness, wallMaterial, lowFriction, $"CornerInner_{i}");
             }
 
             Vector3 startDir = (centerlinePoints[1] - centerlinePoints[0]).normalized;
@@ -194,6 +221,27 @@ namespace RoguelikeRacing.Track
             wall.GetComponent<Renderer>().sharedMaterial = material;
 
             var collider = wall.GetComponent<BoxCollider>();
+            collider.sharedMaterial = physicMaterial;
+        }
+
+        static void BuildCornerPost(Transform parent, Vector3 position, float height, float wallThickness, Material material, PhysicMaterial physicMaterial, string name)
+        {
+            var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            post.name = name;
+            post.transform.SetParent(parent, false);
+            post.transform.position = position;
+
+            // Deliberately generous diameter (wider than the wall) so it overlaps both
+            // adjoining wall segments even when the bisector math above is only
+            // approximate. Default cylinder mesh has radius 0.5, so scale.x/z = diameter.
+            float diameter = wallThickness * 1.8f;
+            post.transform.localScale = new Vector3(diameter, height * 0.5f, diameter);
+            post.GetComponent<Renderer>().sharedMaterial = material;
+
+            // Cylinder primitives ship with a CapsuleCollider, which is exactly what we
+            // want here (round profile bridges two straight walls at any angle) --
+            // unlike the flattened oil slick hazard, this one is left as-is.
+            var collider = post.GetComponent<CapsuleCollider>();
             collider.sharedMaterial = physicMaterial;
         }
 
