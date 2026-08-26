@@ -22,22 +22,22 @@ namespace RoguelikeRacing.Kart
     public class KartController : MonoBehaviour
     {
         [Header("Engine")]
-        public float maxForwardSpeed = 24f;
-        public float maxReverseSpeed = 10f;
-        public float acceleration = 18f;
+        public float maxForwardSpeed = 18f;
+        public float maxReverseSpeed = 8f;
+        public float acceleration = 14f;
         public float brakeDeceleration = 30f;
         public float engineBrakeDeceleration = 10f;
 
         [Header("Steering")]
-        public float baseTurnRateDegPerSec = 110f;
+        public float baseTurnRateDegPerSec = 85f;
         public float minSpeedFactorForFullTurn = 0.25f;
         public float lowSpeedTurnFactor = 0.4f;
         [Tooltip("How fast the effective steer input ramps towards what's actually held, in units/sec of the -1..1 range. Without this, digital input (keyboard, d-pad) snaps instantly between full-left/none/full-right, which is what read as \"out of control\" -- see docs/DESIGN_DECISIONS.md.")]
-        public float steerResponseSpeed = 6f;
+        public float steerResponseSpeed = 5f;
 
         [Header("Drift")]
-        public float driftTurnMultiplier = 1.4f;
-        public float driftLateralSlip = 6f;
+        public float driftTurnMultiplier = 1.3f;
+        public float driftLateralSlip = 5f;
         public float minDriftSecondsForBoost = 0.6f;
         public float driftBoostSpeedBonus = 6f;
         public float maxDriftBoostSpeedBonus = 14f;

@@ -650,3 +650,34 @@ Sources:
 - [Arcade Style Bouncy Vehicle Physics Tutorial - Doofah Software](https://www.doofah.com/tutorials/unity/bouncy-vehicle-tutorial/)
 - [Arcade Racer: Physics with Rigidbody vs Kinetic? - Unity Discussions](https://discussions.unity.com/t/arcade-racer-physics-with-rigidbody-vs-kinetic/692450)
 - [Building an Arcade Racer. Part 2: Physics - Unity](https://unity.com/resources/building-arcade-racer-physics)
+
+## Ainda "virando muito" + "velocidade alta" demais — referência CTR
+
+Feedback direto, sem precisar de pesquisa nova (é ajuste de número, não
+arquitetura): a pista sem vão já deixou dirigir melhor, mas a combinação
+de virar rápido demais + velocidade base alta ainda dá sensação de
+descontrole. Você lembrou que no Crash Team Racing a velocidade "normal"
+(sem powerup/boost) não era tão alta, e o volante não virava tanto — bate
+com o que eu sabia sobre o gênero: em CTR/Mario Kart a emoção de
+velocidade vem majoritariamente do boost (mini-turbo, itens, rampa), não
+da velocidade base de cruzeiro, que costuma ser bem mais "comportada".
+
+Reduzi em `KartController.cs` (valores default, afetam jogador e IA
+igualmente):
+- `maxForwardSpeed`: 24 → 18 (-25%)
+- `acceleration`: 18 → 14 (proporcional à velocidade máxima nova, pra
+  manter o tempo até atingir o topo parecido: ~1.3s antes, ~1.3s agora)
+- `baseTurnRateDegPerSec`: 110 → 85 (-23%; 180° em ~2.1s em vez de ~1.6s)
+- `driftTurnMultiplier`: 1.4 → 1.3 (não amplificar demais a taxa já
+  reduzida)
+- `driftLateralSlip`: 6 → 5
+- `steerResponseSpeed`: 6 → 5 (suavização um pouco mais lenta)
+- `maxReverseSpeed`: 10 → 8 (acompanhando a redução de velocidade geral)
+
+Efeito colateral esperado: com velocidade base menor, boost de item/drift/
+upgrade (que somam um valor fixo, não um %) representa proporcionalmente
+um ganho MAIOR agora — o que é o efeito desejado (boost deveria se
+sentir mais impactante que a velocidade base, igual CTR). Não toquei nos
+valores de boost (`driftBoostSpeedBonus`, `ApplyItemBoost` do Nitro, etc.)
+agora — se o boost ficar forte/fraco demais depois desse ajuste, é o
+próximo lugar pra olhar.

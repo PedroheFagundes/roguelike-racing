@@ -125,6 +125,11 @@ Implementado:
   (`RigidbodyConstraints.FreezeRotationX/Z`), o que vai precisar mudar
   quando ladeira entrar de verdade no escopo. Não implementado ainda,
   só registrado pra não esquecer.
+- Velocidade base e taxa de curva reduzidas (referência: Crash Team
+  Racing tem velocidade "normal" mais comportada, a emoção vem do boost)
+  — `maxForwardSpeed` 24→18, `baseTurnRateDegPerSec` 110→85, mais alguns
+  ajustes menores relacionados. Ver `docs/DESIGN_DECISIONS.md` pra lista
+  completa dos números.
 
 Não implementado ainda (propositalmente, por ordem de trabalho):
 rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`
