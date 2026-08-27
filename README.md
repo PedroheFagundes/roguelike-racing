@@ -5,40 +5,246 @@ level up por volta e escolha de item ao coletar caixa. Ver
 `docs/DESIGN_DECISIONS.md` para as decisões de arquitetura tomadas até
 agora.
 
-## Status atual: Passo 1 — movimento do kart
+## Status atual: Passo 6 + HUD/correções de feedback de jogo
 
 Implementado:
 - Kart com `Rigidbody`, aceleração/freio/ré, curva sensível à velocidade,
   drift com boost ao soltar (mini-turbo), tudo com física simples da Unity.
-- Pista oval mínima gerada por código, feita de primitivas (sem assets
-  externos).
-- Câmera de 3ª pessoa seguindo o kart.
-- Sem IA, sem itens, sem level up ainda — isso é dos próximos passos.
+- 3 pistas selecionáveis (`TrackCatalog`), geradas por código, sem assets
+  externos: **Oval** (curvas largas e contínuas), **Estádio** (retas
+  longas + curva fechada em cada ponta) e **Técnica** (curvas apertadas
+  alternadas). `TrackBuilder` foi separado em "gerar pontos da centerline"
+  (uma função por traçado) + "construir pista a partir de pontos" (lógica
+  única, reaproveitada pelas 3) — pista nova = só escrever mais um gerador
+  de pontos.
+- 3 personagens selecionáveis (`CharacterCatalog`): **Equilibrado**,
+  **Veloz** (+velocidade máxima, -aceleração/curva) e **Ágil**
+  (+aceleração/curva, -velocidade máxima) — ainda só primitiva + cor
+  diferente, sem arte nova. O jogador escolhe 1 na tela inicial; a IA
+  fica automaticamente com os outros 2, então todo personagem sempre
+  aparece na corrida.
+- Tela de setup pré-corrida (`RaceSetupUI`): escolhe pista e personagem
+  antes de qualquer coisa ser montada, com suporte completo a mouse,
+  teclado e controle (mesmo padrão de navegação do painel de level
+  up/item).
+- Câmera de 3ª pessoa seguindo o kart do jogador.
+- 2 oponentes de IA (`KartAIDriver`) seguindo os waypoints da pista (o
+  mesmo `CenterlinePoints` usado para desenhar a pista): mira no próximo
+  ponto, acelera, corta acelerador em curva fechada e ativa drift acima de
+  um ângulo — sem rubber-banding, sem desvio de obstáculo. Karts largam
+  num grid escalonado atrás do jogador (índices diferentes da centerline +
+  deslocamento lateral) pra não nascer um em cima do outro.
+- 8 gates de checkpoint (`CheckpointBuilder`) espalhados pela centerline,
+  como triggers visíveis (cubos finos coloridos, ciano; o de largada/
+  chegada em amarelo). `LapTracker`, anexado em todo kart (jogador e IA),
+  exige que os gates sejam cruzados em ordem antes de contar uma volta —
+  isso impede cortar curva ou dar ré pela linha de chegada pra pontuar.
+  Volta completa loga no console e aparece num HUD simples (`RaceHud`,
+  `OnGUI`) só pro jogador.
 
-Não implementado ainda (propositalmente, por ordem de trabalho): IA,
-checkpoints/volta, level up, caixas de item. Ver `docs/DESIGN_DECISIONS.md`
-para a proposta de como isso vai ser feito sem travar em multiplayer futuro.
+- Level up por volta (`LevelUpController`, só no kart do jogador): ao
+  completar volta, pausa o jogo (`Time.timeScale = 0`) e mostra um painel
+  (`PauseChoiceUI`, `OnGUI`) com 3 upgrades sorteados sem repetição
+  (`RandomPick`) de um catálogo de **11** (`KartUpgradeCatalog`):
+  +velocidade máxima, +aceleração, +taxa de curva, +boost do mini-turbo,
+  **Blindagem** (resiste a mancha de óleo/pulso de choque), **Tração**
+  (atinge curva máxima com menos velocidade), **Reflexo de piloto**
+  (mini-turbo exige menos tempo de drift), **Freio competitivo**
+  (+frenagem), **Rolamento leve** (perde menos velocidade soltando o
+  acelerador), **Marcha a ré reforçada** (+velocidade de ré) e **Turbo
+  prolongado** (+duração do boost do mini-turbo). Efeito permanente e
+  cumulativo (multiplicativo) pro resto da corrida. IA não vê esse painel
+  — ao completar volta, ganha um upgrade aleatório do mesmo catálogo
+  aplicado na hora, sem pausa, só pra não ficar pra trás do jogador
+  enquanto ele sobe de nível.
+
+- Caixas de item (`ItemBox`, `ItemBoxBuilder`): 5 caixas giratórias
+  espalhadas pela pista, alternando lado esquerdo/direito da linha de
+  corrida. Ao tocar, o jogador pausa e escolhe 1 de **4 itens sorteados
+  sem repetição** (`RandomPick`, mesmo helper do level up) de um catálogo
+  de **8** (`ItemCatalog`, mesmo painel `PauseChoiceUI` do level up):
+  Nitro (velocidade temporária), **Overdrive** (versão mais forte/longa
+  do Nitro), Escudo (bloqueia o próximo efeito ofensivo), Mancha de óleo
+  (larga um obstáculo atrás que desacelera quem passar por cima),
+  **Investida** (mesmo obstáculo, mas largado à frente — bloqueia quem
+  vem atrás numa curva), Pulso de choque (desacelera na hora todo mundo
+  perto), **Míssil teleguiado** (persegue o kart imediatamente à frente
+  na corrida, com curva limitada — dá pra desviar) e **Reviravolta**
+  (troca de posição com um kart aleatório da corrida). **Item escolhido
+  fica guardado** (`KartInventory`, 1 slot) até o jogador apertar o botão
+  de usar — não é mais aplicado na hora da escolha. IA toca a caixa,
+  ganha um item aleatório do catálogo completo e usa na hora (ela ainda
+  não tem estratégia de "quando" usar). Caixa reaparece depois de um
+  cooldown em vez de sumir de vez.
+- **Subida e descida em todas as pistas**, incluindo saltos "radicais":
+  cada traçado (`TrackBuilder.Generate*Centerline`) agora aplica 4
+  solavancos de elevação (`ApplyElevation`/`JumpBump`) ao longo da volta
+  — 2 morros suaves e 2 saltos mais íngremes — com transição suave
+  (perfil de meio-cosseno) e inclinação de pico calculada pra ficar bem
+  abaixo do limiar que o código de colisão usa pra distinguir chão de
+  parede. Pista, muro, checkpoint, caixa de item e waypoint de IA
+  acompanham a elevação automaticamente (todos derivam da mesma
+  `CenterlinePoints`). O chassi do kart continua nivelado (não inclina
+  pra acompanhar a rampa visualmente) — decisão de escopo registrada em
+  `docs/DESIGN_DECISIONS.md`, junto com os números exatos e o que
+  conferir ao testar.
+- IA também sobe de nível e usa item — ela nunca ficou de fora disso:
+  ao completar volta ganha upgrade aleatório do catálogo (mesmo mecanismo
+  desde o passo 4), e ao tocar caixa de item ganha e usa item aleatório
+  (passo 5, agora passando pelo mesmo `KartInventory` do jogador). Sem
+  isso o jogador ficaria trivialmente mais forte a cada volta sem
+  nenhuma resposta da IA.
+- HUD do jogador (`RaceHud`) agora mostra: volta atual, **posição na
+  corrida** (`RaceStandings`, 1º/2º/3º entre os 3 karts, calculado por
+  quantos checkpoints+voltas cada um já passou), item guardado, e os
+  comandos pra usar item/drift. Aviso grande de **CONTRAMÃO** aparece
+  quando a velocidade do kart aponta contra a direção da pista
+  (`WrongWayDetector`, só no jogador).
+- Muro da pista corrigido: em curvas fechadas (Estádio, Técnica) sobrava
+  um vão entre um segmento de muro e o próximo, deixando o kart vazar pra
+  fora. Adicionei um "poste" redondo em cada vértice da pista (dos dois
+  lados) que fecha esse vão em qualquer ângulo de curva, e aumentei a
+  espessura padrão do muro. Ver `docs/DESIGN_DECISIONS.md` pro diagnóstico
+  completo — não consegui reproduzir/ver o bug aqui, então vale confirmar
+  que sumiu depois de testar.
+- Menus (`PauseChoiceUI`, `RaceSetupUI`, `RaceHud`) escalam com o tamanho
+  real da tela agora (`OnGuiScale`), em vez de pixel fixo — ficavam
+  desproporcionalmente pequenos em monitor grande. Nunca encolhe abaixo do
+  tamanho original, só cresce em tela maior que a referência (600px de
+  altura).
+- Corrigido kart "preso"/tremendo contra parede (bug real, confirmado por
+  pesquisa — ver `docs/DESIGN_DECISIONS.md`): a causa era definir a
+  velocidade do kart direto todo frame, o que anulava qualquer resposta
+  de colisão da física antes dela fazer efeito. `KartController` agora
+  faz "collide and slide": desliza ao longo da parede em vez de travar, e
+  sai livre assim que o volante aponta pra longe dela.
+- Direção suavizada (teclado é digital -1/0/1, sem rampa isso vira "snap"
+  instantâneo) e taxa de curva reduzida (140°/s → 110°/s), pra ficar
+  menos descontrolado. Vale pra IA também.
+- Pistas ~50% maiores e mais largas (raio/reta de cada traçado e largura
+  da pista todos aumentados proporcionalmente).
+- Checkpoints (as "paredes" coloridas — ciano = normal, amarelo = largada/
+  chegada) redesenhados como arco (dois pilares + viga, meio aberto) em
+  vez de bloco sólido cruzando a pista — não eram bug, mas tinham cara de
+  parede/obstáculo. A detecção de volta não mudou, só a aparência.
+- **Pista nas curvas corrigida** (bug real visto em print, não físico):
+  a pista era feita de caixas independentes, uma por trecho, cada uma
+  orientada só pra própria direção — numa curva fechada isso deixava vão
+  e sobreposição entre trechos vizinhos, visível e físico (o kart caía e
+  subia no collider a cada vão). `TrackBuilder` agora gera a pista como
+  uma malha única e contínua (fita ao longo da centerline, vértice
+  compartilhado entre trechos), sem costura possível em nenhum ângulo de
+  curva. Bem provavelmente a causa real de "péssimo pra dirigir" nas
+  curvas, não só direção precisando de ajuste.
+- Pesquisei (não só supus) se deveríamos abandonar Rigidbody por uma
+  simulação "falsa"/cinemática, pensando nas ladeiras/rampas que ainda
+  vamos fazer — ver `docs/DESIGN_DECISIONS.md` pra fontes e detalhe.
+  Resposta: não, kart racer usa Rigidbody sim (inclusive tutorial oficial
+  da Unity), só que com forças simplificadas/arcade em vez de física
+  realista de carro. Pra rampa, a técnica padrão (suspensão por raycast +
+  alinhar o chassi à normal do chão) também é em cima de Rigidbody — só
+  que hoje a rotação em X/Z do kart está travada
+  (`RigidbodyConstraints.FreezeRotationX/Z`), o que vai precisar mudar
+  quando ladeira entrar de verdade no escopo. Não implementado ainda,
+  só registrado pra não esquecer.
+- Velocidade base e taxa de curva reduzidas (referência: Crash Team
+  Racing tem velocidade "normal" mais comportada, a emoção vem do boost)
+  — `maxForwardSpeed` 24→18, `baseTurnRateDegPerSec` 110→85, mais alguns
+  ajustes menores relacionados. Ver `docs/DESIGN_DECISIONS.md` pra lista
+  completa dos números.
+
+Não implementado ainda (propositalmente, por ordem de trabalho):
+rubber-banding, fim de corrida (N voltas). Ver `docs/DESIGN_DECISIONS.md`
+para a arquitetura de decisão compartilhada entre level up e item, pensada
+pra não travar quando multiplayer entrar, e para as decisões do passo 6
+(pistas/personagens/upgrades) e desta rodada (HUD/contramão/vazamento/item
+guardado).
+
+## Teclado + controle (gamepad), incluindo Steam Deck
+
+Todo input do jogador — dirigir e os painéis de pausa (level up/item) —
+reconhece teclado e controle ao mesmo tempo, sem precisar trocar de modo:
+
+- `ProjectSettings/InputManager.asset` (commitado explicitamente, não
+  gerado pelo Unity) faz os eixos `Horizontal`/`Vertical` lerem teclado
+  (WASD/setas) **e** o analógico esquerdo do primeiro joystick conectado.
+  Acelerar/ré usa o eixo vertical do analógico (frente/trás), não os
+  gatilhos — ver `docs/DESIGN_DECISIONS.md` pra saber por quê.
+- Drift lê `KeyCode.JoystickButton0`/`5` (botão sul / ombro direito, "em
+  qualquer joystick") além de `Shift`/`Space`.
+- `PauseChoiceUI` (o painel de level up e de item) agora também navega com
+  seta cima/baixo ou analógico/d-pad, e confirma com Enter/Space/botão sul
+  — antes só dava pra clicar com o mouse, o que quebrava jogo 100%
+  teclado ou 100% controle bem no primeiro level up. Clique com mouse
+  continua funcionando.
+
+No Steam Deck especificamente: o Steam Input, no template padrão de
+"Gamepad", emula um controle Xbox 360 (XInput) pro jogo — é por isso que
+"ler joystick genérico" funciona no Deck sem nenhum código específico da
+Valve. O que isso NÃO cobre (fora do escopo por enquanto, ver
+`docs/DESIGN_DECISIONS.md`): ícones de botão que mostram os botões reais
+do Deck (isso exige integrar a Steamworks SDK), e build/empacotamento pra
+Steam em si (não existe pipeline de build neste repo). **Nada disso foi
+testado em hardware real** — não tenho Editor nem um Deck aqui; ver seção
+de verificação abaixo.
 
 ## Abrir no Unity
 
-1. Abra a pasta do projeto no Unity Hub / Unity Editor **2022.3 LTS**
-   (`ProjectSettings/ProjectVersion.txt` pede `2022.3.21f1`; qualquer patch
-   2022.3.x deve funcionar).
-2. Primeira abertura vai baixar os pacotes do `Packages/manifest.json`
-   (precisa de internet) e vai gerar os arquivos `.meta` que faltam — isso
-   é esperado, este repo não commitou `.meta` ainda. **Depois de abrir uma
-   vez, rode `git status` e commite os `.meta` gerados** para fixar os GUIDs.
+**Testado e rodando em Unity 6 (`6000.5.7f1`)** — `.meta` e
+`ProjectSettings/*` já estão commitados a partir dessa versão real (não
+mais gerados na hora, como nas primeiras vezes). O código usa a API atual
+do `Rigidbody` (`linearVelocity`, `linearDamping`) e `PhysicsMaterial`
+(sem o "s" era o nome antigo, pré-Unity 6) — se abrir numa versão mais
+antiga (2022.3 LTS, por exemplo) vai dar erro de compilação nessas
+chamadas e vai precisar reverter pros nomes antigos.
+
+1. Abra a pasta do projeto no Unity Hub / Unity Editor **6000.5.x** (ou
+   mais recente da série Unity 6).
+2. Primeira abertura pode baixar/atualizar pacotes do
+   `Packages/manifest.json` (precisa de internet).
 3. Abra a cena `Assets/Scenes/Prototype_KartMovement.unity` e dê Play.
-   A cena em si está praticamente vazia — todo o cenário (pista, kart,
-   câmera, luz) é montado em runtime por `GameBootstrap.cs`. Não precisa
-   arrastar nada manualmente.
+   A cena em si está praticamente vazia — todo o cenário (tela de setup,
+   pista, kart, câmera, luz) é montado em runtime por `GameBootstrap.cs`.
+   Não precisa arrastar nada manualmente.
+4. Escolha pista e personagem na tela inicial e clique (ou confirme com
+   teclado/controle) em "Iniciar corrida".
 
 ## Controles
 
-- Acelerar / ré: `W`/`↑` e `S`/`↓`
-- Virar: `A`/`←` e `D`/`→`
-- Drift: `Shift` ou `Space` (segure enquanto vira; solte para ganhar o
-  boost do mini-turbo se segurou tempo suficiente)
+| Ação | Teclado | Controle |
+| --- | --- | --- |
+| Acelerar / ré | `W`/`↑` e `S`/`↓` | Analógico esquerdo (frente/trás) |
+| Virar | `A`/`←` e `D`/`→` | Analógico esquerdo (esquerda/direita) |
+| Drift | `Shift` ou `Space` | Botão sul (A/Cross) ou ombro direito (RB/R1) |
+| **Usar item guardado** | `E` ou `Ctrl` | Botão oeste (X/Square) |
+| Navegar (setup / painel de escolha) | Setas ou `WASD` | Analógico ou d-pad |
+| Confirmar escolha | `Enter` ou `Space` | Botão sul (A/Cross) |
+
+Drift: segure enquanto vira; solte para ganhar o boost do mini-turbo se
+segurou tempo suficiente. Item: escolher no painel da caixa só *guarda* o
+item (mostrado no HUD) — apertar o botão de usar é que ativa o efeito. O
+painel de level up/item também aceita clique de mouse em qualquer opção,
+além da navegação por teclado/controle acima.
+
+## Verificar controle/Steam Deck (não testado neste ambiente)
+
+Sem Editor nem hardware aqui, nada disto foi confirmado rodando de
+verdade. Ao testar:
+
+- [ ] Conectar um controle (Xbox/Xinput ou Steam Deck em modo Desktop com
+      controle) antes de dar Play e conferir se dirige com o analógico
+      esquerdo e faz drift com A/RB.
+- [ ] Conferir que teclado continua funcionando junto (sem precisar
+      desconectar o controle).
+- [ ] Completar uma volta / pegar um item e navegar o painel só com
+      teclado (sem mouse), depois só com controle (sem mouse).
+- [ ] No Steam Deck: rodar via Steam (Desktop Mode primeiro é mais fácil
+      de depurar) com o template de Input padrão "Gamepad" e repetir os
+      itens acima.
+- [ ] Build Linux nativo (Unity Hub → instalar "Linux Build Support") ou
+      build Windows rodando via Proton — qualquer um deveria funcionar,
+      já que o projeto não usa plugins nativos nem nada específico de
+      plataforma.
 
 ## Testes headless (fora do Editor)
 
@@ -62,12 +268,22 @@ o Editor e jogar — isso não foi validado neste ambiente.
 
 ```
 Assets/Scripts/
-  Kart/     KartController, KartInput, KartPhysicsMath, KartFactory
-  Track/    TrackBuilder (pista procedural de primitivas)
+  Kart/     KartController, KartInput, KartAIDriver, KartPhysicsMath, KartFactory
+  Track/    TrackBuilder, TrackCatalog, Checkpoint, CheckpointBuilder
+            (pista procedural + 3 tracados + gates)
+  Race/     LapTracker, RaceHud, RaceStandings, WrongWayDetector,
+            LevelUpController, PauseChoiceUI, ChoicePrompt, OnGuiScale,
+            KartUpgrade, KartUpgradeCatalog,
+            ItemBox, ItemBoxBuilder, ItemDefinition, ItemCatalog,
+            ItemHazards, OilSlickHazard, KartInventory,
+            CharacterDefinition, CharacterCatalog
   Camera/   ChaseCamera
-  Core/     GameBootstrap (monta tudo em runtime)
+  Core/     GameBootstrap (monta a corrida em runtime), RaceSetupUI
+            (tela de escolha de pista/personagem)
 Assets/Scenes/
   Prototype_KartMovement.unity
+ProjectSettings/
+  InputManager.asset (eixos teclado + joystick, commitado explicitamente)
 Tests/RoguelikeRacing.Logic.Tests/
   Testes headless (dotnet test) do KartPhysicsMath
 docs/

@@ -4,17 +4,21 @@ namespace RoguelikeRacing.Kart
 {
     /// <summary>
     /// Builds a placeholder kart entirely out of primitives (cube body, capsule cabin,
-    /// cylinder wheels) plus the physics + input components it needs to drive.
+    /// cylinder wheels) plus the physics it needs to drive. Does NOT attach an input
+    /// source: the caller adds either KartInput (local player) or KartAIDriver (AI),
+    /// so the same factory serves both without any player/AI branching in here.
     /// </summary>
     public static class KartFactory
     {
-        public static GameObject SpawnKart(Vector3 position, Quaternion rotation, Transform parent = null)
+        static readonly Color DefaultBodyColor = new Color(0.15f, 0.55f, 0.95f);
+
+        public static GameObject SpawnKart(Vector3 position, Quaternion rotation, Transform parent = null, string name = "Kart", Color? bodyColor = null)
         {
-            var kart = new GameObject("PlayerKart");
+            var kart = new GameObject(name);
             if (parent != null) kart.transform.SetParent(parent, false);
             kart.transform.SetPositionAndRotation(position, rotation);
 
-            BuildVisual(kart.transform);
+            BuildVisual(kart.transform, bodyColor ?? DefaultBodyColor);
 
             var collider = kart.AddComponent<BoxCollider>();
             collider.center = new Vector3(0f, 0.5f, 0f);
@@ -22,17 +26,16 @@ namespace RoguelikeRacing.Kart
 
             var rb = kart.AddComponent<Rigidbody>();
             rb.mass = 180f;
-            rb.drag = 0.5f;
-            rb.angularDrag = 4f;
+            rb.linearDamping = 0.5f;
+            rb.angularDamping = 4f;
             rb.centerOfMass = new Vector3(0f, -0.3f, 0f);
 
             kart.AddComponent<KartController>();
-            kart.AddComponent<KartInput>();
 
             return kart;
         }
 
-        static void BuildVisual(Transform kart)
+        static void BuildVisual(Transform kart, Color bodyColor)
         {
             var body = GameObject.CreatePrimitive(PrimitiveType.Cube);
             body.name = "Body";
@@ -40,7 +43,7 @@ namespace RoguelikeRacing.Kart
             body.transform.localPosition = new Vector3(0f, 0.5f, 0f);
             body.transform.localScale = new Vector3(1.6f, 0.6f, 2.6f);
             Object.Destroy(body.GetComponent<Collider>());
-            SetColor(body, new Color(0.15f, 0.55f, 0.95f));
+            SetColor(body, bodyColor);
 
             var cabin = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             cabin.name = "Cabin";
